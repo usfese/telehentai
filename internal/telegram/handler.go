@@ -64,8 +64,9 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	}
 
 	sent, err := api.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: msg.Chat.ID,
-		Text:   "已收到，正在解析…",
+		ChatID:          msg.Chat.ID,
+		MessageThreadID: msg.MessageThreadID,
+		Text:            "已收到，正在解析…",
 	})
 	if err != nil {
 		b.logger.Error("发送状态消息失败", "chat_id", msg.Chat.ID, "err", err)
@@ -99,7 +100,7 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 		if res.Rejected {
 			editor.finish(rejectedText(res), models.ParseModeHTML, "")
 			if res.CoverURL != "" {
-				b.sendPhoto(msg.Chat.ID, res.CoverURL)
+				b.sendPhoto(msg.Chat.ID, msg.MessageThreadID, res.CoverURL)
 			}
 			return
 		}
@@ -159,12 +160,13 @@ func (b *Bot) authorized(userID int64) bool {
 }
 
 // sendPhoto 把封面图（图床 URL）发给用户；失败只记日志。
-func (b *Bot) sendPhoto(chatID int64, photoURL string) {
+func (b *Bot) sendPhoto(chatID int64, threadID int, photoURL string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if _, err := b.api.SendPhoto(ctx, &bot.SendPhotoParams{
-		ChatID: chatID,
-		Photo:  &models.InputFileString{Data: photoURL},
+		ChatID:          chatID,
+		MessageThreadID: threadID,
+		Photo:           &models.InputFileString{Data: photoURL},
 	}); err != nil {
 		b.logger.Warn("发送封面失败", "chat_id", chatID, "err", err)
 	}
@@ -172,8 +174,9 @@ func (b *Bot) sendPhoto(chatID int64, photoURL string) {
 
 func (b *Bot) reply(ctx context.Context, api *bot.Bot, msg *models.Message, text string) {
 	if _, err := api.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: msg.Chat.ID,
-		Text:   text,
+		ChatID:          msg.Chat.ID,
+		MessageThreadID: msg.MessageThreadID,
+		Text:            text,
 	}); err != nil {
 		b.logger.Error("发送消息失败", "chat_id", msg.Chat.ID, "err", err)
 	}
