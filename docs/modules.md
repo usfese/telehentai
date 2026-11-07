@@ -11,6 +11,7 @@
 | `internal/ehentai` | 链接解析、限速、元数据、图片列表、图片下载与原图回退 | 无（仅标准库、`x/net/html`、`x/time/rate`） |
 | `internal/store` | 本地画廊缓存（原子写）、Telegraph token 持久化 | `internal/ehentai`（仅类型） |
 | `internal/telegraph` | telegra.ph 客户端与内容节点构建 | 无 |
+| `internal/tags` | 标签中文翻译（内嵌 EhTagTranslation 数据） | 无 |
 | `internal/pipeline` | 任务队列、下载复用、分页发布 | `internal/ehentai`、`internal/telegraph` |
 | `internal/imgsrv` | 只读图片 HTTP 服务、autocert | `internal/store` |
 | `internal/telegram` | Telegram 长轮询、授权、进度与回执 | `internal/ehentai`、`internal/pipeline` |
@@ -49,6 +50,10 @@ func New(Config, *slog.Logger) (*Client, error)
 ## internal/store
 
 `Store` 只依赖文件系统：`New(root)` 建目录；`SaveMeta`/`LoadMeta` 读写 `meta.json`（临时文件 + rename）；`SaveImage`/`ImageExists`/`ListImages`/`HasAll` 管理 `<root>/galleries/<gid>/<页码>.<ext>`；`TelegraphToken`/`SaveTelegraphToken` 管理 `<root>/telegraph.json`（0600，缺失时返回空串而非错误）。
+
+## internal/tags
+
+`Translate("female:lolicon")` 返回 `"女性：萝莉"`；未收录的命名空间/标签原样返回。数据由 `scripts/update_tags.py` 从 EhTagTranslation/Database 生成到 `data/tags.json` 并 `go:embed`，`Version()` 返回内置版本。`telegraph.metaNodes` 在渲染标签行时调用它。
 
 ## internal/telegraph
 

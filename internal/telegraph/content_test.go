@@ -118,13 +118,23 @@ func TestBuildPartMetaNodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 首页应有 3 个元数据节点 + 2 张图。
+	// 首页应有 2 张图 + 3 个元数据节点，且图片在前、信息在最后。
 	if len(part.Nodes) != 5 {
 		t.Fatalf("节点数=%d: %+v", len(part.Nodes), part.Nodes)
 	}
-	b, _ := json.Marshal(part.Nodes[0])
+	for i := range 2 {
+		b, _ := json.Marshal(part.Nodes[i])
+		if !strings.Contains(string(b), `"tag":"figure"`) {
+			t.Fatalf("第 %d 个节点应为图片: %s", i, b)
+		}
+	}
+	b, _ := json.Marshal(part.Nodes[2])
 	if !strings.Contains(string(b), "分类：Doujinshi") || !strings.Contains(string(b), "共 200 页") {
 		t.Fatalf("元数据行错误: %s", b)
+	}
+	last, _ := json.Marshal(part.Nodes[len(part.Nodes)-1])
+	if !strings.Contains(string(last), "E-Hentai 原画廊") {
+		t.Fatalf("最后应是来源信息: %s", last)
 	}
 
 	in.Category = ""

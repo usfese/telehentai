@@ -112,6 +112,42 @@ img.example.com {
 }
 ```
 
+Nginx 示例（同一台机器 443 已被别的服务占用时，用 `server_name` 做 SNI 分流即可）：
+
+```nginx
+server {
+    listen 80;
+    server_name img.example.com;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    server_name img.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/img.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/img.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+对应配置：`image_server.listen: "127.0.0.1:8088"`、`tls.mode: off`、`public_base_url: "https://img.example.com"`。证书可用 `certbot --nginx -d img.example.com` 申请。
+
+### DNS 与端口
+
+1. 在 DNS 服务商添加 `img.example.com` 的 **A（IPv4）/ AAAA（IPv6）记录**，指向与另一个子域名相同的服务器 IP。子域名互不影响，靠 HTTP `Host`/TLS SNI 分流。
+2. 确认解析生效：`dig +short img.example.com`。
+3. 放行防火墙的 80、443；`listen` 建议绑定 `127.0.0.1`，不要直接暴露 8088。
+4. 反向代理存在时**不要**同时开 `tls.mode: autocert`——autocert 会独占 443，和已有服务冲突；`off` + Nginx/Caddy 才是正确组合。
+
 `public_base_url` 仍然是 HTTPS，校验只检查它是不是绝对 URL 以及协议组合是否合理。
 
 ## 常见故障
@@ -141,6 +177,16 @@ img.example.com {
 - 不自动清理磁盘：Telegraph 页面长期有效，删除本地图片会让页面图片失效。
 - 下载失败的页会被跳过并汇报数量；重新发送同一链接会增量补全。
 - 外部依赖：telegra.ph 对 `img` 外链的策略可能变化（目前接受任意 URL）。
+
+## 标签翻译
+
+文章末尾的标签会使用 [EhTagTranslation/Database](https://github.com/EhTagTranslation/Database) 的数据翻译成中文（如 `female:lolicon` → `女性：萝莉`），数据库随二进制内嵌，运行时不联网。更新数据：
+
+```bash
+python3 scripts/update_tags.py
+```
+
+数据库以 CC BY-NC-SA 3.0 协议提供，派生数据说明见 `internal/tags/data/README.md`。
 
 ## 合规提示
 

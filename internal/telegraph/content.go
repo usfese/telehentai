@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/usfese/telehentai/internal/tags"
 )
 
 // Input 是一次发布的静态信息；ImageBase 是图片目录前缀，图片按 ImageBase+"/"+name 拼接。
@@ -36,6 +38,7 @@ const (
 )
 
 // BuildPart 从 names 中尽可能多地构造图片节点，返回本页内容与消耗的图片数量。
+// 图片在前、元数据在最后：外部预览会取页面首张图作为封面，信息块放在末尾不挡图。
 // partNo 从 1 开始；预算按节点 JSON 字节数计算，超限时截断而不是报错，
 // 只有当第一张图就放不下时才返回 ErrContentTooBig，让调用方降低预算重试。
 func BuildPart(in Input, names []string, partNo, budget int) (Part, int, error) {
@@ -45,10 +48,11 @@ func BuildPart(in Input, names []string, partNo, budget int) (Part, int, error) 
 	part := Part{Title: partTitle(in, partNo)}
 	limit := budget - navReserveBytes
 
+	// 元数据节点的字节数同样计入预算，但延迟到图片之后再插入。
+	var meta []Node
 	used := 0
 	if partNo == 1 {
-		meta := metaNodes(in)
-		part.Nodes = append(part.Nodes, meta...)
+		meta = metaNodes(in)
 		for _, n := range meta {
 			used += nodeBytes(n)
 		}
@@ -69,6 +73,9 @@ func BuildPart(in Input, names []string, partNo, budget int) (Part, int, error) 
 		used += size
 		part.Nodes = append(part.Nodes, fig)
 		part.Images++
+	}
+	if len(meta) > 0 {
+		part.Nodes = append(part.Nodes, meta...)
 	}
 	return part, part.Images, nil
 }
@@ -118,11 +125,15 @@ func metaNodes(in Input) []Node {
 	}
 
 	if len(in.Tags) > 0 {
-		tags := in.Tags
-		if len(tags) > maxTags {
-			tags = tags[:maxTags]
+		tagList := in.Tags
+		if len(tagList) > maxTags {
+			tagList = tagList[:maxTags]
 		}
-		nodes = append(nodes, Node{Tag: "p", Children: []any{"标签：" + strings.Join(tags, "、")}})
+		translated := make([]string, len(tagList))
+		for i, tag := range tagList {
+			translated[i] = tags.Translate(tag)
+		}
+		nodes = append(nodes, Node{Tag: "p", Children: []any{"标签：" + strings.Join(translated, "、")}})
 	}
 
 	if in.SourceURL != "" {

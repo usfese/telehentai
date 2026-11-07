@@ -49,6 +49,15 @@ go test ./internal/ehentai/
 
 期望值：`gallery_22.html` 为 total=22、首页 20 个链接；`gallery_22_p2.html` 为 2 个链接；`gallery_1400.html` 为 total=1400；`image_page.html` 同时能解析出 `/fullimg/` 与 `img#img`。
 
+## 更新标签翻译数据
+
+```bash
+python3 scripts/update_tags.py          # 下载最新 release 并重写 internal/tags/data/tags.json
+go test ./internal/tags/
+```
+
+脚本只保留「命名空间 → 标签 → 中文名」，不带简介，生成文件约 1.3 MB 并随二进制内嵌。数据许可与来源见 `internal/tags/data/README.md`。
+
 ## 只用 CLI 调试
 
 不需要 Telegram token 也能验证下载、图床与发布：
