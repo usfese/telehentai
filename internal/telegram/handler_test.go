@@ -19,3 +19,18 @@ func TestIsHelpCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractLink(t *testing.T) {
+	if _, ok := extractLink("https://e-hentai.org/g/4310985/ad9552b3e4/"); !ok {
+		t.Fatal("纯链接应被识别")
+	}
+	if _, ok := extractLink("求这本 https://e-hentai.org/g/4310985/ad9552b3e4/ 谢谢"); !ok {
+		t.Fatal("带说明文字的链接应被识别")
+	}
+	if _, ok := extractLink("https://example.com/g/1/abcdef1234/"); ok {
+		t.Fatal("非 EH 链接不应识别")
+	}
+	if _, ok := extractLink("普通聊天"); ok {
+		t.Fatal("普通文本不应识别")
+	}
+}

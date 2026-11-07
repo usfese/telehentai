@@ -25,6 +25,7 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	if text == "" {
 		return
 	}
+	b.logger.Debug("收到消息", "chat_id", msg.Chat.ID, "chat_type", string(msg.Chat.Type), "from", msg.From.ID, "text_len", len(text))
 
 	// 只响应命令与 E-Hentai 链接，其余消息（聊天、图片、贴纸等）一律静默忽略。
 	head := strings.Fields(text)[0]
@@ -35,8 +36,9 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 		return
 	}
 
-	link, err := ehentai.ParseLink(text)
-	if err != nil {
+	link, ok := extractLink(text)
+	if !ok {
+		b.logger.Debug("忽略非链接消息", "chat_id", msg.Chat.ID, "preview", truncate(text, 80))
 		return
 	}
 
@@ -96,6 +98,28 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	if !b.pipe.Submit(job) {
 		editor.finish(busyText, "", "")
 	}
+}
+
+// extractLink 从纯链接或带说明文字的消息里提取画廊链接。
+func extractLink(text string) (ehentai.Link, bool) {
+	if l, err := ehentai.ParseLink(strings.TrimSpace(text)); err == nil {
+		return l, true
+	}
+	for _, field := range strings.Fields(text) {
+		candidate := strings.Trim(field, "()[]{}<>\"'`,，。；;!！?？")
+		if l, err := ehentai.ParseLink(candidate); err == nil {
+			return l, true
+		}
+	}
+	return ehentai.Link{}, false
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) > n {
+		return string(r[:n])
+	}
+	return s
 }
 
 // isHelpCommand 匹配 /start、/help，以及群里的 /start@botname 形式。
