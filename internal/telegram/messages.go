@@ -3,6 +3,7 @@ package telegram
 import (
 	"errors"
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/usfese/telehentai/internal/ehentai"
@@ -47,9 +48,19 @@ func progressText(p pipeline.Progress) string {
 	}
 }
 
-// resultText 只返回生成的页面链接，不附加统计或提示。
+// resultText 只返回生成的页面链接，用页面标题作为显示文本（需要 HTML parse mode）。
 func resultText(res pipeline.Result) string {
-	return strings.Join(res.URLs, "\n")
+	if len(res.Pages) == 0 {
+		return strings.Join(res.URLs, "\n")
+	}
+	var b strings.Builder
+	for i, p := range res.Pages {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, `<a href="%s">%s</a>`, html.EscapeString(p.URL), html.EscapeString(p.Title))
+	}
+	return b.String()
 }
 
 // errorText 把内部错误映射为用户可读的提示，不暴露 Cookie、配置项等部署细节。

@@ -334,3 +334,49 @@ func TestSubmitDedupAndRelease(t *testing.T) {
 		t.Fatal("第二次任务未完成")
 	}
 }
+
+func TestProcessSinglePageHasNoNavigation(t *testing.T) {
+	src := newFakeSource(3)
+	st := newFakeStore()
+	pub := &fakePublisher{}
+	p := New(testConfig(), src, pub, st, discardLogger())
+
+	if _, err := p.Process(context.Background(), testJob(4310985)); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(pub.createdInputs[0].Content)
+	if strings.Contains(string(raw), "第 1 部分") {
+		t.Fatalf("单页文章不应出现导航行: %s", raw)
+	}
+}
+
+func TestProcessMultiPartAddsNavigation(t *testing.T) {
+	src := newFakeSource(40)
+	st := newFakeStore()
+	pub := &fakePublisher{}
+	cfg := testConfig()
+	cfg.MaxContentBytes = 4096 // 强制切成多页
+	p := New(cfg, src, pub, st, discardLogger())
+
+	if _, err := p.Process(context.Background(), testJob(4310985)); err != nil {
+		t.Fatal(err)
+	}
+	if pub.createCalls < 2 {
+		t.Fatalf("应切成多页，实际 %d", pub.createCalls)
+	}
+	first, _ := json.Marshal(pub.createdInputs[0].Content)
+	second, _ := json.Marshal(pub.createdInputs[1].Content)
+	if !strings.Contains(string(first), "第 1 部分") {
+		t.Fatalf("首页应有导航: %s", first)
+	}
+	if !strings.Contains(string(second), "上一部分") {
+		t.Fatalf("第二页应有上一部分链接: %s", second)
+	}
+	if pub.editCalls < 1 {
+		t.Fatal("应回填上一页的下一部分链接")
+	}
+	edited, _ := json.Marshal(pub.editedInputs[0].Content)
+	if !strings.Contains(string(edited), "下一部分") {
+		t.Fatalf("回填内容缺少下一部分: %s", edited)
+	}
+}

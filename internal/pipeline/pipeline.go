@@ -349,6 +349,7 @@ func PublishImages(ctx context.Context, cfg Config, pub Publisher, images []stri
 	prevURL := ""
 	var prev *createdPart
 	urls := make([]string, 0, 4)
+	pages := make([]PageLink, 0, 4)
 
 	for idx < len(images) {
 		part, n, err := telegraph.BuildPart(in, images[idx:], partNo, budget)
@@ -359,7 +360,11 @@ func PublishImages(ctx context.Context, cfg Config, pub Publisher, images []stri
 			return Result{}, errors.New("分页失败：本次没有消耗任何图片")
 		}
 
-		nodes := append(append([]telegraph.Node{}, part.Nodes...), telegraph.NavNode(partNo, prevURL, ""))
+		// 只有存在上一页或下一页时才追加导航行；单页文章不显示「第 1 部分」。
+		nodes := part.Nodes
+		if prevURL != "" || idx+n < len(images) {
+			nodes = append(append([]telegraph.Node{}, part.Nodes...), telegraph.NavNode(partNo, prevURL, ""))
+		}
 		page, err := pub.CreatePage(ctx, telegraph.PageInput{
 			Title:      part.Title,
 			Content:    nodes,
@@ -391,11 +396,12 @@ func PublishImages(ctx context.Context, cfg Config, pub Publisher, images []stri
 		}
 
 		urls = append(urls, page.URL)
+		pages = append(pages, PageLink{URL: page.URL, Title: part.Title})
 		prev = &createdPart{part: part, partNo: partNo, page: page, prevURL: prevURL}
 		prevURL = page.URL
 		idx += n
 		partNo++
 	}
 
-	return Result{URLs: urls, Images: len(images)}, nil
+	return Result{URLs: urls, Pages: pages, Images: len(images)}, nil
 }

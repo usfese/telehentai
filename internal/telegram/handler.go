@@ -77,14 +77,14 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	}
 	job.Done = func(res pipeline.Result, err error) {
 		if err != nil {
-			editor.finish(errorText(err))
+			editor.finish(errorText(err), "")
 			return
 		}
-		editor.finish(resultText(res))
+		editor.finish(resultText(res), models.ParseModeHTML)
 	}
 
 	if !b.pipe.Submit(job) {
-		editor.finish(busyText)
+		editor.finish(busyText, "")
 	}
 }
 
@@ -141,14 +141,14 @@ func (e *statusEditor) progress(p pipeline.Progress) {
 	e.lastStage = p.Stage
 	e.mu.Unlock()
 
-	e.edit(progressText(p))
+	e.edit(progressText(p), "")
 }
 
-func (e *statusEditor) finish(text string) {
-	e.edit(text)
+func (e *statusEditor) finish(text string, parseMode models.ParseMode) {
+	e.edit(text, parseMode)
 }
 
-func (e *statusEditor) edit(text string) {
+func (e *statusEditor) edit(text string, parseMode models.ParseMode) {
 	// 结果回调发生在 worker 中，可能晚于本次更新的 ctx；这里用独立超时上下文。
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -156,6 +156,7 @@ func (e *statusEditor) edit(text string) {
 		ChatID:    e.chatID,
 		MessageID: e.messageID,
 		Text:      text,
+		ParseMode: parseMode,
 	})
 	if err != nil && !strings.Contains(err.Error(), "message is not modified") {
 		e.logger.Warn("编辑状态消息失败", "message_id", e.messageID, "err", err)

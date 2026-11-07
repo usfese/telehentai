@@ -59,10 +59,18 @@ type Progress struct {
 	Note  string
 }
 
+// PageLink 是一个已发布页面的地址与标题。
+type PageLink struct {
+	URL   string
+	Title string
+}
+
 // Result 是任务成功后的汇总。
 type Result struct {
 	// URLs 是按顺序生成的 Telegraph 页面地址。
 	URLs []string
+	// Pages 与 URLs 一一对应，额外带上页面标题，便于展示为可点击的标题文本。
+	Pages []PageLink
 	// Images 是实际发布的图片张数。
 	Images int
 	// UsedFallback 表示有图片使用的是重采样图而非原图。
