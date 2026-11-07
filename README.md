@@ -150,6 +150,29 @@ server {
 
 `public_base_url` 仍然是 HTTPS，校验只检查它是不是绝对 URL 以及协议组合是否合理。
 
+## CI/CD
+
+推送 `main` 触发 GitHub Actions：`go vet` / `go test` / `go build` 通过后，构建 linux/amd64 静态二进制并经 SSH 部署到 VPS。
+
+部署步骤（`deploy` job）：
+
+1. 上传二进制到 `/tmp`；
+2. 原子替换 `/opt/telehentai/telehentai`，上一版保留为 `telehentai.prev`；
+3. 重启 `telehentai.service`；
+4. 轮询 `http://127.0.0.1:8088/healthz` 最多 15 秒；
+5. 健康检查失败则用 `.prev` 回滚并让 job 失败。
+
+仓库 Secrets（Settings → Secrets and variables → Actions）：
+
+| Secret | 说明 |
+|---|---|
+| `DEPLOY_HOST` | 服务器 IP |
+| `DEPLOY_USER` | SSH 用户（需免密 sudo） |
+| `DEPLOY_PORT` | SSH 端口 |
+| `DEPLOY_SSH_KEY` | 部署私钥，对应公钥写入服务器 `authorized_keys` |
+
+服务器上的 `/etc/telehentai/config.yaml` 含 bot token 与 Cookie，CI 不覆盖它；改配置仍需手动。
+
 ## 常见故障
 
 | 现象 | 原因 | 处理 |

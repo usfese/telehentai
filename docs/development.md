@@ -76,3 +76,7 @@ telehentai publish --data-dir /tmp/thdata --image-base-url http://127.0.0.1:1808
 - 一个提交只做一件事；消息使用 `feat(scope): 中文描述`、`fix(scope): ...`、`chore: ...`、`docs: ...`。
 - 导出类型/函数必须有中文注释；限速、回退、预算这类「为什么」逻辑写 1~3 行说明，不做逐行翻译。
 - 修改配置字段时同步更新 `config.example.yaml`、`docs/config.md` 与 `internal/config/config_test.go`（默认值一致性测试会强制这一点）。
+
+## CI/CD
+
+推送 `main` 自动跑测试、构建 linux/amd64 二进制并部署到 VPS（见 `.github/workflows/ci.yml`）。部署密钥与服务器信息存放在仓库 Secrets：`DEPLOY_HOST`、`DEPLOY_USER`、`DEPLOY_PORT`、`DEPLOY_SSH_KEY`。

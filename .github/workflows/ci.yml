@@ -3,6 +3,10 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -18,3 +22,60 @@ jobs:
         run: go test ./...
       - name: build
         run: go build ./...
+
+  deploy:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build linux/amd64
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+            -ldflags "-s -w -X github.com/usfese/telehentai/internal/cli.Version=${GITHUB_SHA::7}" \
+            -o telehentai ./cmd/telehentai
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT }}" -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload binary
+        run: |
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.DEPLOY_PORT }}" -o BatchMode=yes \
+            telehentai "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/telehentai-${GITHUB_SHA::7}"
+
+      - name: Install, restart and health check
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.DEPLOY_PORT }}" -o BatchMode=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "NEW=/tmp/telehentai-${GITHUB_SHA::7} bash -s" <<'REMOTE'
+          set -eu
+          test -f "$NEW"
+          sudo install -m 0755 -o root -g root "$NEW" /opt/telehentai/telehentai.new
+          sudo cp -a /opt/telehentai/telehentai /opt/telehentai/telehentai.prev
+          sudo mv /opt/telehentai/telehentai.new /opt/telehentai/telehentai
+          sudo systemctl restart telehentai
+          for _ in $(seq 1 15); do
+            sleep 1
+            if curl -fsS --max-time 2 http://127.0.0.1:8088/healthz >/dev/null 2>&1; then
+              rm -f "$NEW"
+              /opt/telehentai/telehentai version
+              exit 0
+            fi
+          done
+          echo "health check failed, rolling back" >&2
+          sudo mv /opt/telehentai/telehentai.prev /opt/telehentai/telehentai
+          sudo systemctl restart telehentai
+          exit 1
+          REMOTE
