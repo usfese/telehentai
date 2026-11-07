@@ -53,7 +53,7 @@ func New(Config, *slog.Logger) (*Client, error)
 
 ## internal/tags
 
-`Translate("female:lolicon")` 返回 `"女性：萝莉"`；未收录的命名空间/标签原样返回。数据由 `scripts/update_tags.py` 从 EhTagTranslation/Database 生成到 `data/tags.json` 并 `go:embed`，`Version()` 返回内置版本。`telegraph.metaNodes` 在渲染标签行时调用它。
+`Translate("female:lolicon")` 返回 `"女性：萝莉"`；`GroupTags` 按命名空间归并（女性/男性/语言/原作/艺术家…）供文章分行渲染；未收录的命名空间/标签原样返回。数据由 `scripts/update_tags.py` 从 EhTagTranslation/Database 生成到 `data/tags.json` 并 `go:embed`，`Version()` 返回内置版本。`telegraph.metaNodes` 在渲染标签行时调用它。
 
 ## internal/telegraph
 

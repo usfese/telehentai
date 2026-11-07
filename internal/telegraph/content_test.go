@@ -177,3 +177,23 @@ func TestFigureNode(t *testing.T) {
 		t.Fatalf("figure 节点错误: %s", b)
 	}
 }
+
+func TestBuildPartTagsGroupedByNamespace(t *testing.T) {
+	in := testInput()
+	in.Tags = []string{"language:chinese", "male:shotacon", "artist:nobody", "female:lolicon"}
+	part, _, err := BuildPart(in, namesFor(1), 1, 49152)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 图片 -> 元数据行 -> 女性 -> 男性 -> 语言 -> 艺术家 -> 来源链接
+	want := []string{"女性：萝莉", "男性：正太", "语言：汉语", "艺术家：nobody"}
+	if len(part.Nodes) != len(want)+3 {
+		t.Fatalf("节点数=%d: %+v", len(part.Nodes), part.Nodes)
+	}
+	for i, w := range want {
+		b, _ := json.Marshal(part.Nodes[i+2])
+		if !strings.Contains(string(b), w) {
+			t.Fatalf("第 %d 行=%s，期望包含 %q", i+2, b, w)
+		}
+	}
+}

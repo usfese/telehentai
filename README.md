@@ -214,7 +214,7 @@ server {
 
 ## 标签翻译
 
-文章末尾的标签会使用 [EhTagTranslation/Database](https://github.com/EhTagTranslation/Database) 的数据翻译成中文（如 `female:lolicon` → `女性：萝莉`），数据库随二进制内嵌，运行时不联网。更新数据：
+文章末尾的标签会使用 [EhTagTranslation/Database](https://github.com/EhTagTranslation/Database) 的数据翻译成中文（如 `female:lolicon` → `女性：萝莉`），并按命名空间分行展示：女性、男性、混合、语言、原作、角色、团队、艺术家、Coser、地点、其他。数据库随二进制内嵌，运行时不联网。更新数据：
 
 ```bash
 python3 scripts/update_tags.py

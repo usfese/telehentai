@@ -34,7 +34,7 @@ const (
 	// maxTitleRunes 是标题的字符上限（Telegraph 限制按字符计）。
 	maxTitleRunes = 256
 	// maxTags 是标签节点展示数量上限，防止单节点过大。
-	maxTags = 20
+	maxTags = 50
 )
 
 // BuildPart 从 names 中尽可能多地构造图片节点，返回本页内容与消耗的图片数量。
@@ -129,11 +129,10 @@ func metaNodes(in Input) []Node {
 		if len(tagList) > maxTags {
 			tagList = tagList[:maxTags]
 		}
-		translated := make([]string, len(tagList))
-		for i, tag := range tagList {
-			translated[i] = tags.Translate(tag)
+		for _, g := range tags.GroupTags(tagList) {
+			line := g.Namespace + "：" + strings.Join(g.Tags, "、")
+			nodes = append(nodes, Node{Tag: "p", Children: []any{line}})
 		}
-		nodes = append(nodes, Node{Tag: "p", Children: []any{"标签：" + strings.Join(translated, "、")}})
 	}
 
 	if in.SourceURL != "" {
