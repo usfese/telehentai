@@ -271,7 +271,7 @@ func runFetch(ctx context.Context, o fetchOptions) error {
 			logger.Info("下载进度", "done", done, "total", total)
 		}
 	}
-	stats, err := pipeline.DownloadGallery(ctx, src, st, ref, meta, o.limit, progress, logger)
+	stats, err := pipeline.DownloadGallery(ctx, src, st, ref, meta, o.limit, cfg.Pipeline.DownloadConcurrency, progress, logger)
 	if err != nil {
 		return err
 	}

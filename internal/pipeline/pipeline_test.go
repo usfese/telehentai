@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +29,8 @@ func newFakeStore() *fakeStore {
 }
 
 func (f *fakeStore) HasAll(gid, want int) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if want <= 0 {
 		return false, nil
 	}
@@ -35,11 +38,15 @@ func (f *fakeStore) HasAll(gid, want int) (bool, error) {
 }
 
 func (f *fakeStore) ListImages(gid int) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.listCall++
 	return append([]string(nil), f.images[gid]...), nil
 }
 
 func (f *fakeStore) ImageExists(gid, page int) (bool, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	prefix := fmt.Sprintf("%04d.", page)
 	for _, n := range f.images[gid] {
 		if strings.HasPrefix(n, prefix) {
@@ -52,11 +59,15 @@ func (f *fakeStore) ImageExists(gid, page int) (bool, string) {
 func (f *fakeStore) SaveImage(gid, page int, ext string, r io.Reader) (string, error) {
 	_, _ = io.Copy(io.Discard, r)
 	name := fmt.Sprintf("%04d%s", page, ext)
+	f.mu.Lock()
 	f.images[gid] = append(f.images[gid], name)
+	f.mu.Unlock()
 	return name, nil
 }
 
 func (f *fakeStore) SaveMeta(gid int, m ehentai.GalleryMeta) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.meta[gid] = m
 	return nil
 }
@@ -65,9 +76,12 @@ type fakeSource struct {
 	meta         ehentai.GalleryMeta
 	pages        []ehentai.ImagePage
 	failPages    map[int]bool
-	listCalls    int
-	resolveCalls int
-	openCalls    int
+	listCalls    atomic.Int32
+	resolveCalls atomic.Int32
+	openCalls    atomic.Int32
+	openDelay    time.Duration
+	active       atomic.Int32
+	maxActive    atomic.Int32
 }
 
 func newFakeSource(n int) *fakeSource {
@@ -87,17 +101,28 @@ func (f *fakeSource) Meta(context.Context, ehentai.GalleryRef) (ehentai.GalleryM
 }
 
 func (f *fakeSource) ListImagePages(context.Context, ehentai.GalleryRef, int) ([]ehentai.ImagePage, error) {
-	f.listCalls++
+	f.listCalls.Add(1)
 	return f.pages, nil
 }
 
 func (f *fakeSource) ResolveImage(_ context.Context, p ehentai.ImagePage) (ehentai.ImageRef, error) {
-	f.resolveCalls++
+	f.resolveCalls.Add(1)
 	return ehentai.ImageRef{Page: p.Page, ImageURL: "https://img.example.com/src.webp", Referer: p.URL}, nil
 }
 
 func (f *fakeSource) Open(_ context.Context, ref ehentai.ImageRef) (io.ReadCloser, ehentai.ImageData, error) {
-	f.openCalls++
+	f.openCalls.Add(1)
+	if f.openDelay > 0 {
+		n := f.active.Add(1)
+		for {
+			m := f.maxActive.Load()
+			if n <= m || f.maxActive.CompareAndSwap(m, n) {
+				break
+			}
+		}
+		time.Sleep(f.openDelay)
+		f.active.Add(-1)
+	}
 	if f.failPages[ref.Page] {
 		return nil, ehentai.ImageData{}, errors.New("模拟下载失败")
 	}
@@ -207,8 +232,8 @@ func TestProcessCacheHitSkipsDownload(t *testing.T) {
 	if res.Images != 3 {
 		t.Fatalf("应发布缓存图片，得到 %+v", res)
 	}
-	if src.listCalls != 0 || src.openCalls != 0 || src.resolveCalls != 0 {
-		t.Fatalf("缓存命中仍访问了数据源: list=%d open=%d resolve=%d", src.listCalls, src.openCalls, src.resolveCalls)
+	if src.listCalls.Load() != 0 || src.openCalls.Load() != 0 || src.resolveCalls.Load() != 0 {
+		t.Fatalf("缓存命中仍访问了数据源: list=%d open=%d resolve=%d", src.listCalls.Load(), src.openCalls.Load(), src.resolveCalls.Load())
 	}
 }
 
@@ -248,8 +273,28 @@ func TestProcessPartialDownloadFailure(t *testing.T) {
 		t.Fatalf("应发布 2 张，得到 %+v / %v", res, st.images[4310985])
 	}
 	// 失败页会重新解析并重试一次：1、2(失败两次)、3 => 4 次解析。
-	if src.resolveCalls != 4 {
-		t.Fatalf("ResolveImage 调用=%d，期望 4", src.resolveCalls)
+	if got := src.resolveCalls.Load(); got != 4 {
+		t.Fatalf("ResolveImage 调用=%d，期望 4", got)
+	}
+}
+
+func TestDownloadGalleryRunsConcurrently(t *testing.T) {
+	src := newFakeSource(12)
+	src.openDelay = 25 * time.Millisecond
+	st := newFakeStore()
+
+	stats, err := DownloadGallery(context.Background(), src, st, testJob(4310985).Ref, src.meta, 0, 4, nil, discardLogger())
+	if err != nil {
+		t.Fatalf("DownloadGallery: %v", err)
+	}
+	if stats.Images != 12 {
+		t.Fatalf("下载数=%d", stats.Images)
+	}
+	if got := src.maxActive.Load(); got < 2 {
+		t.Fatalf("并发未生效，最大并发=%d", got)
+	}
+	if got := len(st.images[4310985]); got != 12 {
+		t.Fatalf("保存数=%d", got)
 	}
 }
 

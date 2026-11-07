@@ -52,6 +52,7 @@
 - `pipeline.workers`（int，`1`）：同时处理的画廊数量，必须 >= 1。
 - `pipeline.queue_size`（int，`8`）：等待队列长度，必须 >= 1。
 - `pipeline.progress_interval`（duration，`5s`）：Telegram 进度消息的最小编辑间隔。
+- `pipeline.download_concurrency`（int，`4`）：单本画廊内并发下载的图片数，同时也是并发解析 `/s/` 页的数量。
 - `log.level`（string，`info`）：`debug`/`info`/`warn`/`error`。
 - `log.format`（string，`text`）：`text` 或 `json`。
 

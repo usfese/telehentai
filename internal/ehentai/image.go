@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/time/rate"
@@ -55,8 +56,12 @@ func (c *Client) Open(ctx context.Context, ref ImageRef) (io.ReadCloser, ImageDa
 
 // openOne 下载单个候选地址；非图片响应（例如登录页 HTML）会被分类为错误。
 func (c *Client) openOne(ctx context.Context, rawURL, referer string) (io.ReadCloser, ImageData, error) {
-	if err := c.pacer.Wait(ctx); err != nil {
-		return nil, ImageData{}, err
+	// 只有 E-Hentai 自身（原图 /fullimg/）需要遵守站点节流；
+	// H@H 图片 CDN 走独立带宽控速，避免每张图都被 1s 间隔串行化。
+	if u, err := url.Parse(rawURL); err == nil && isECookieHost(u.Hostname()) {
+		if err := c.pacer.Wait(ctx); err != nil {
+			return nil, ImageData{}, err
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -100,7 +105,7 @@ func (c *Client) openOne(ctx context.Context, rawURL, referer string) (io.ReadCl
 		body:    resp.Body,
 		ctx:     ctx,
 		limit:   maxImageBytes,
-		limiter: newBandwidthLimiter(c.cfg.BandwidthKiBPerSec),
+		limiter: c.bandwidth,
 	}
 	return r, ImageData{ContentType: ct, Ext: ext, Size: resp.ContentLength}, nil
 }

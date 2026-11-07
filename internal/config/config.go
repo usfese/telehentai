@@ -113,6 +113,8 @@ type PipelineConfig struct {
 	Workers          int      `yaml:"workers"`
 	QueueSize        int      `yaml:"queue_size"`
 	ProgressInterval Duration `yaml:"progress_interval"`
+	// DownloadConcurrency 是单本画廊内并发下载的图片数（同时也是并发解析 /s/ 页的数量）。
+	DownloadConcurrency int `yaml:"download_concurrency"`
 }
 
 // LogConfig 描述日志级别与格式。
@@ -191,9 +193,10 @@ func Default() *Config {
 			},
 		},
 		Pipeline: PipelineConfig{
-			Workers:          1,
-			QueueSize:        8,
-			ProgressInterval: Duration(5 * time.Second),
+			Workers:             1,
+			QueueSize:           8,
+			ProgressInterval:    Duration(5 * time.Second),
+			DownloadConcurrency: 4,
 		},
 		Log: LogConfig{Level: "info", Format: "text"},
 	}
@@ -279,6 +282,9 @@ func (c *Config) Validate(mode Mode) error {
 	}
 	if c.Pipeline.QueueSize < 1 {
 		return fmt.Errorf("pipeline.queue_size 必须 >= 1，当前 %d", c.Pipeline.QueueSize)
+	}
+	if c.Pipeline.DownloadConcurrency < 1 {
+		return fmt.Errorf("pipeline.download_concurrency 必须 >= 1，当前 %d", c.Pipeline.DownloadConcurrency)
 	}
 	if c.Telegraph.MaxContentBytes < 4096 {
 		return fmt.Errorf("telegraph.max_content_bytes 必须 >= 4096，当前 %d", c.Telegraph.MaxContentBytes)

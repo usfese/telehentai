@@ -47,18 +47,9 @@ func progressText(p pipeline.Progress) string {
 	}
 }
 
-// resultText 生成最终成功消息；只保留用户关心的结果。
+// resultText 只返回生成的页面链接，不附加统计或提示。
 func resultText(res pipeline.Result) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "已完成：%d 张图片，%d 个页面", res.Images, len(res.URLs))
-	for _, u := range res.URLs {
-		b.WriteString("\n")
-		b.WriteString(u)
-	}
-	if res.Failed > 0 {
-		b.WriteString("\n（部分图片未能获取）")
-	}
-	return b.String()
+	return strings.Join(res.URLs, "\n")
 }
 
 // errorText 把内部错误映射为用户可读的提示，不暴露 Cookie、配置项等部署细节。

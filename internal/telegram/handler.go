@@ -48,9 +48,8 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	}
 
 	sent, err := api.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:          msg.Chat.ID,
-		Text:            "已收到，正在解析…",
-		ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		ChatID: msg.Chat.ID,
+		Text:   "已收到，正在解析…",
 	})
 	if err != nil {
 		b.logger.Error("发送状态消息失败", "chat_id", msg.Chat.ID, "err", err)
@@ -99,9 +98,8 @@ func (b *Bot) authorized(userID int64) bool {
 
 func (b *Bot) reply(ctx context.Context, api *bot.Bot, msg *models.Message, text string) {
 	if _, err := api.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:          msg.Chat.ID,
-		Text:            text,
-		ReplyParameters: &models.ReplyParameters{MessageID: msg.ID},
+		ChatID: msg.Chat.ID,
+		Text:   text,
 	}); err != nil {
 		b.logger.Error("发送消息失败", "chat_id", msg.Chat.ID, "err", err)
 	}

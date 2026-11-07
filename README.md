@@ -180,7 +180,9 @@ server {
 | `prefer_original: true` | 原图，PNG 常见 3–20 MB | 34.7s / 4.22 MB |
 | `prefer_original: false` | H@H 重采样图，约 1280px WebP/JPEG | 10.5s / 0.58 MB |
 
-`bandwidth_kib_per_sec` 默认 512，提高到 2048 可减少大图的等待；`request_interval` 不要低于 1s，避免触发站点风控。当前下载是串行的，进一步提速需要并发下载（见 `docs/architecture.md` 的并发模型）。
+`bandwidth_kib_per_sec` 默认 512（服务器上设为 2048）；`request_interval` 建议不低于 200ms。`pipeline.download_concurrency`（默认 4）让单本画廊并发解析与下载，`/s/` 页面仍受 `request_interval` 节流，H@H CDN 只受总带宽限制。
+
+服务器实测：22 页画廊约 25 秒（`prefer_original: false`、`request_interval: 300ms`、并发 4）。此时瓶颈是站点请求延迟与 CDN，而不是带宽；把并发从 4 提到 8 或取消带宽限制几乎没有变化。
 
 ## 常见故障
 

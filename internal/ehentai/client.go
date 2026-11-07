@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -94,12 +96,13 @@ type ImageData struct {
 
 // Client 是 E-Hentai 访问入口；并发安全。
 type Client struct {
-	cfg     Config
-	logger  *slog.Logger
-	pacer   *Pacer
-	ua      string
-	http    *http.Client // 元数据/HTML 请求，带整体超时
-	imgHTTP *http.Client // 图片下载，不设整体超时（限速会拉长耗时）
+	cfg       Config
+	logger    *slog.Logger
+	pacer     *Pacer
+	bandwidth *rate.Limiter // 所有并发下载共享，控制总带宽
+	ua        string
+	http      *http.Client // 元数据/HTML 请求，带整体超时
+	imgHTTP   *http.Client // 图片下载，不设整体超时（限速会拉长耗时）
 }
 
 // New 构造客户端。代理支持 http(s):// 与 socks5://。
@@ -157,12 +160,13 @@ func New(cfg Config, logger *slog.Logger) (*Client, error) {
 	}
 
 	return &Client{
-		cfg:     cfg,
-		logger:  logger,
-		ua:      ua,
-		pacer:   NewPacer(cfg.RequestInterval, cfg.RequestJitter),
-		http:    &http.Client{Transport: rt, Timeout: cfg.Timeout, CheckRedirect: checkRedirect},
-		imgHTTP: &http.Client{Transport: rt, CheckRedirect: checkRedirect},
+		cfg:       cfg,
+		logger:    logger,
+		ua:        ua,
+		pacer:     NewPacer(cfg.RequestInterval, cfg.RequestJitter),
+		bandwidth: newBandwidthLimiter(cfg.BandwidthKiBPerSec),
+		http:      &http.Client{Transport: rt, Timeout: cfg.Timeout, CheckRedirect: checkRedirect},
+		imgHTTP:   &http.Client{Transport: rt, CheckRedirect: checkRedirect},
 	}, nil
 }
 

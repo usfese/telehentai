@@ -69,6 +69,8 @@ pipeline:
   queue_size: 8
   # 进度消息的最小编辑间隔
   progress_interval: 5s
+  # 单本画廊内并发下载的图片数（同时决定 /s/ 页面的并发解析数）
+  download_concurrency: 4
 
 log:
   level: info

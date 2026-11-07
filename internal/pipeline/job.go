@@ -89,6 +89,8 @@ type Config struct {
 	QueueSize        int
 	ProgressInterval time.Duration
 	MaxContentBytes  int
+	// DownloadConcurrency 是单本画廊内并发下载/解析的图片数。
+	DownloadConcurrency int
 	// PublicBaseURL 是图床根地址；Process 内部拼成 <base>/i/<gid>。
 	PublicBaseURL string
 	AuthorName    string

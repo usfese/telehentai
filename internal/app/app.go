@@ -130,13 +130,14 @@ func EhentaiConfig(cfg *config.Config) ehentai.Config {
 
 func PipelineConfig(cfg *config.Config) pipeline.Config {
 	return pipeline.Config{
-		Workers:          cfg.Pipeline.Workers,
-		QueueSize:        cfg.Pipeline.QueueSize,
-		ProgressInterval: cfg.Pipeline.ProgressInterval.D(),
-		MaxContentBytes:  cfg.Telegraph.MaxContentBytes,
-		PublicBaseURL:    strings.TrimRight(cfg.ImageServer.PublicBaseURL, "/"),
-		AuthorName:       cfg.Telegraph.AuthorName,
-		AuthorURL:        cfg.Telegraph.AuthorURL,
+		Workers:             cfg.Pipeline.Workers,
+		QueueSize:           cfg.Pipeline.QueueSize,
+		ProgressInterval:    cfg.Pipeline.ProgressInterval.D(),
+		MaxContentBytes:     cfg.Telegraph.MaxContentBytes,
+		DownloadConcurrency: cfg.Pipeline.DownloadConcurrency,
+		PublicBaseURL:       strings.TrimRight(cfg.ImageServer.PublicBaseURL, "/"),
+		AuthorName:          cfg.Telegraph.AuthorName,
+		AuthorURL:           cfg.Telegraph.AuthorURL,
 	}
 }
 

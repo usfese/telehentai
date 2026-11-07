@@ -87,8 +87,9 @@ stateDiagram-v2
 ## 并发模型
 
 - **任务级**：`pipeline.New` 启动 `pipeline.workers` 个 goroutine 消费带缓冲队列；同一 `gid` 通过 `inflight` map 去重，队列满或重复提交时 `Submit` 返回 false。
-- **请求级**：`ehentai.Pacer` 用互斥量预占时间槽，保证任意时刻两个 E-Hentai 请求间隔 >= `request_interval`，并叠加 0..`request_jitter` 的随机抖动。API、画廊页、图片页、图片下载都经过它。
-- **字节级**：图片下载由 `imageReader` 包一层 `rate.Limiter`，按 `bandwidth_kib_per_sec` 限速；0 表示不限速。
+- **画廊级**：`DownloadGallery` 用 `download_concurrency`（默认 4）个 worker 并发解析 `/s/` 页并下载图片；进度回调串行化，失败页各自重解析一次。
+- **请求级**：`ehentai.Pacer` 用互斥量预占时间槽，保证两次 E-Hentai 请求间隔 >= `request_interval` 并叠加抖动；只作用于 `e-hentai.org`/`exhentai.org`，H@H 图片 CDN 不受此节流。
+- **字节级**：所有并发下载共享一个 `rate.Limiter`，按 `bandwidth_kib_per_sec` 控制总带宽；0 表示不限速。
 - **进度上报**：`Process` 的下载回调按 `pipeline.progress_interval` 节流，Telegram 侧再按 `progress_interval` 节流一次，避免触发编辑限流。
 - **关闭**：`signal.NotifyContext` 取消根 ctx；图床 `Shutdown(5s)`，机器人长轮询退出，worker 读到 ctx.Done 后退出。
 

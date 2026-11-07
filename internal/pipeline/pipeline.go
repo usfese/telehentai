@@ -44,6 +44,9 @@ func New(cfg Config, src Source, pub Publisher, st ImageStore, logger *slog.Logg
 	if cfg.MaxContentBytes <= 0 {
 		cfg.MaxContentBytes = 49152
 	}
+	if cfg.DownloadConcurrency < 1 {
+		cfg.DownloadConcurrency = 4
+	}
 	return &Pipeline{
 		cfg:      cfg,
 		src:      src,
@@ -145,7 +148,7 @@ func (p *Pipeline) Process(ctx context.Context, j *Job) (Result, error) {
 	if cached {
 		report(Progress{Stage: StageDownloading, Done: len(images), Total: len(images), Note: "缓存命中"})
 	} else {
-		stats, err = DownloadGallery(ctx, p.src, p.store, j.Ref, meta, 0, p.throttledReporter(report), p.logger)
+		stats, err = DownloadGallery(ctx, p.src, p.store, j.Ref, meta, 0, p.cfg.DownloadConcurrency, p.throttledReporter(report), p.logger)
 		if err != nil {
 			return Result{}, err
 		}
@@ -201,7 +204,7 @@ func (p *Pipeline) throttledReporter(report func(Progress)) func(done, total int
 
 // DownloadGallery 逐页下载画廊并保存到本地；已存在的页直接跳过。
 // limit<=0 表示不限；单页失败只记录并继续，结束后仍写入元数据。
-func DownloadGallery(ctx context.Context, src Source, st ImageStore, ref ehentai.GalleryRef, meta ehentai.GalleryMeta, limit int, onProgress func(done, total int), logger *slog.Logger) (DownloadStats, error) {
+func DownloadGallery(ctx context.Context, src Source, st ImageStore, ref ehentai.GalleryRef, meta ehentai.GalleryMeta, limit, concurrency int, onProgress func(done, total int), logger *slog.Logger) (DownloadStats, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -212,43 +215,69 @@ func DownloadGallery(ctx context.Context, src Source, st ImageStore, ref ehentai
 		return stats, err
 	}
 	total := len(pages)
-	processed := 0
+	if limit > 0 && len(pages) > limit {
+		pages = pages[:limit]
+		total = limit
+	}
+	if concurrency < 1 {
+		concurrency = 4
+	}
 
+	var (
+		mu         sync.Mutex
+		progressMu sync.Mutex
+		processed  int
+		wg         sync.WaitGroup
+	)
+	sem := make(chan struct{}, concurrency)
+
+loop:
 	for _, page := range pages {
 		if err := ctx.Err(); err != nil {
 			break
 		}
-		exists, _ := st.ImageExists(ref.GID, page.Page)
-		if exists {
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break loop
+		}
+		wg.Add(1)
+		go func(page ehentai.ImagePage) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			exists, _ := st.ImageExists(ref.GID, page.Page)
+			if !exists {
+				data, err := downloadPage(ctx, src, st, ref.GID, page, logger)
+				mu.Lock()
+				if err != nil {
+					stats.Failed++
+				} else {
+					stats.Images++
+					if data.UsedFallback {
+						stats.UsedFallback = true
+					}
+				}
+				mu.Unlock()
+				if err != nil {
+					logger.Warn("下载图片失败", "gid", ref.GID, "page", page.Page, "err", err)
+				}
+			}
+
+			mu.Lock()
 			processed++
+			done := processed
+			mu.Unlock()
+
 			if onProgress != nil {
-				onProgress(processed, total)
+				// 进度回调可能被多个 worker 并发调用，这里串行化，避免上层节流状态竞争。
+				progressMu.Lock()
+				onProgress(done, total)
+				progressMu.Unlock()
 			}
-			if limit > 0 && processed >= limit {
-				break
-			}
-			continue
-		}
-
-		data, err := downloadPage(ctx, src, st, ref.GID, page, logger)
-		if err != nil {
-			stats.Failed++
-			logger.Warn("下载图片失败", "gid", ref.GID, "page", page.Page, "err", err)
-		} else {
-			stats.Images++
-			if data.UsedFallback {
-				stats.UsedFallback = true
-			}
-		}
-
-		processed++
-		if onProgress != nil {
-			onProgress(processed, total)
-		}
-		if limit > 0 && processed >= limit {
-			break
-		}
+		}(page)
 	}
+	wg.Wait()
 
 	if err := st.SaveMeta(ref.GID, meta); err != nil {
 		return stats, fmt.Errorf("保存元数据: %w", err)
