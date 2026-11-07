@@ -187,7 +187,7 @@ server {
 ## 群组使用
 
 - 把机器人加入群。Telegram 默认隐私模式会让它收不到普通消息：在 BotFather 用 `/setprivacy` 关闭后，需把机器人移出群再重新加入（或直接把机器人设为管理员）。
-- 机器人只响应两类消息：E-Hentai / ExHentai 画廊链接，以及 `/start`、`/help`（群里可写 `/start@botname`）。聊天、图片、贴纸、其他命令一律静默忽略。
+- 机器人只响应两类消息：**整条消息就是一个** E-Hentai / ExHentai 画廊链接，以及 `/start`、`/help`（群里可写 `/start@botname`）。带其他文字的链接、聊天、图片、贴纸、其他命令一律静默忽略。
 - 群里只有 `telegram.allowed_user_ids` 中的用户发的链接会被处理；未授权用户在群里静默忽略，私聊才会收到无权限提示。
 - 超级群的话题（Forum Topic）里调用时，进度、结果和封面都会回复到**同一话题**，不会跑到 General。
 

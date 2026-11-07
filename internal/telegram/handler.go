@@ -48,8 +48,9 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 		return
 	}
 
-	link, ok := extractLink(text)
-	if !ok {
+	// 只接受「整条消息就是一个链接」，带其他文字的链接不处理。
+	link, err := ehentai.ParseLink(text)
+	if err != nil {
 		b.logger.Debug("忽略非链接消息", "chat_id", msg.Chat.ID, "preview", truncate(text, 80))
 		return
 	}
@@ -111,20 +112,6 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	if !b.pipe.Submit(job) {
 		editor.finish(busyText, "", "")
 	}
-}
-
-// extractLink 从纯链接或带说明文字的消息里提取画廊链接。
-func extractLink(text string) (ehentai.Link, bool) {
-	if l, err := ehentai.ParseLink(strings.TrimSpace(text)); err == nil {
-		return l, true
-	}
-	for _, field := range strings.Fields(text) {
-		candidate := strings.Trim(field, "()[]{}<>\"'`,，。；;!！?？")
-		if l, err := ehentai.ParseLink(candidate); err == nil {
-			return l, true
-		}
-	}
-	return ehentai.Link{}, false
 }
 
 func senderChatID(msg *models.Message) int64 {
