@@ -1,0 +1,75 @@
+# telehentai 配置示例。复制为 config.yaml 后按注释填写。
+# 所有字段都可省略，省略时使用这里展示的默认值。
+
+telegram:
+  # @BotFather 创建的机器人 token（可用环境变量 TELEHENTAI_TELEGRAM_TOKEN 代替）
+  token: ""
+  # 允许使用机器人的 Telegram 用户 ID 白名单
+  allowed_user_ids: []
+  # 设为 true 时不校验白名单（危险，勿在公网使用）
+  allow_all_users: false
+
+ehentai:
+  # 登录态 Cookie，原图下载需要（可用环境变量 TELEHENTAI_EHENTAI_COOKIE 代替）
+  # 格式示例："ipb_member_id=123456; ipb_pass_hash=abcdef; igneous=..."
+  cookie: ""
+  user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  # 可选代理，支持 http:// 与 socks5://
+  proxy: ""
+  # 两次 E-Hentai 请求之间的最小间隔（>= 200ms）
+  request_interval: 1s
+  # 在最小间隔上追加的随机抖动上限
+  request_jitter: 300ms
+  # 图片下载的字节限速，单位 KiB/s，0 表示不限速
+  bandwidth_kib_per_sec: 512
+  timeout: 60s
+  # 每个请求的重试次数（429/5xx/网络错误）
+  retries: 3
+  # 优先下载原图；无 cookie 时会自动回退到重采样图
+  prefer_original: true
+  # 单本画廊的页数上限
+  max_pages: 5000
+
+download:
+  # 本地缓存与图床根目录
+  data_dir: "./data"
+
+telegraph:
+  # 已有 telegra.ph token 可填这里；留空时首次运行自动创建账号
+  access_token: ""
+  author_name: "telehentai"
+  author_url: ""
+  # 单页内容 JSON 的字节预算（Telegraph 硬上限约 60 KiB）
+  max_content_bytes: 49152
+  # 两次 Telegraph 请求之间的间隔
+  request_interval: 1s
+
+image_server:
+  # tls.mode=off 时的监听地址；tls.mode=autocert 时固定监听 :443
+  listen: ":8088"
+  # 浏览器与 Telegraph 访问图片所用的公网地址，run 模式必须是 https
+  # 例："https://img.example.com"
+  public_base_url: ""
+  tls:
+    # off：自行用反向代理终止 TLS；autocert：内置 Let's Encrypt 证书
+    mode: off
+    # autocert 需要的域名，必须与 public_base_url 的 host 一致
+    domain: ""
+    # autocert 的 ACME 注册邮箱
+    email: ""
+    # autocert 证书缓存目录
+    cache_dir: "./data/autocert"
+    # autocert 模式下 HTTP 端口监听（用于 ACME 挑战并跳转 https）
+    http_listen: ":80"
+
+pipeline:
+  # 同时处理的画廊数量
+  workers: 1
+  # 等待队列长度
+  queue_size: 8
+  # 进度消息的最小编辑间隔
+  progress_interval: 5s
+
+log:
+  level: info
+  format: text
