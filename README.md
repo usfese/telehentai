@@ -127,6 +127,11 @@ img.example.com {
 | 发布报 `CONTENT_TOO_BIG` 且预算已降到 4096 | Telegraph 结构性限制变化 | 调小 `telegraph.max_content_bytes` 并检查内容构建逻辑 |
 | exhentai 链接失败 | 表里站需要有效 Cookie（igneous） | 配置 exhentai 的 Cookie |
 | 日志出现「图床公网地址不可达」 | 自检请求失败（DNS/反代/防火墙） | 修好公网访问；该告警不阻塞启动 |
+| `public_base_url: https://localhost` + `tls.mode: off` | 本进程只在 `listen`（默认 `:8088`）上提供明文 HTTP，443 上没有服务 | 要么用 autocert，要么让反向代理把 `https://localhost` 转到 `127.0.0.1:8088`；否则 Telegraph 页面图片打不开 |
+| 失败提示「画廊不存在、已删除或 token 无效」 | 站点返回 `Key missing, or incorrect key provided.` 或 `This gallery is not available.` | 重新复制完整画廊链接（含 token）再试 |
+| 失败提示「需要有效的 E-Hentai Cookie」 | 站点返回 `You must be logged in`、Sad Panda 页，或 exhentai 返回 200 空响应 | 配置/更新 `ehentai.cookie`；exhentai 的 Cookie 必须包含 `igneous` |
+| 失败提示「站点拒绝访问」并提到 Offensive | 画廊被标记为 Offensive，站点返回警告页 | 程序已自动附加 `nw=1` 跳过警告；仍失败说明当前 Cookie 不被接受 |
+| 失败提示「页面解析失败…（文本片段：…）」 | 站点返回了未知结构或未知错误页 | 按括号内的站点原文判断；若为站点改版请更新解析器与 fixture |
 
 ## 已知限制
 

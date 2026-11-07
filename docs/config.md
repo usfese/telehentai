@@ -81,6 +81,8 @@ ipb_member_id=123456; ipb_pass_hash=abcdef...; igneous=...
 
 没有 Cookie 时程序不会失败：`/fullimg` 会被重定向到登录页，随后自动回退到 H@H 重采样图，并在结果消息中提示。
 
+程序会自动在 E-Hentai/ExHentai 请求中附加 `nw=1`，跳过「flagged as Offensive」警告页（该页没有缩略图容器）。如果你的 Cookie 里已经包含 `nw`，则保持原值。exhentai 的 Cookie 必须包含 `igneous`，否则站点会返回空页或 302 到 `?poni=no`。
+
 ## 校验规则
 
 通用校验（所有模式）：`download.data_dir` 非空；`ehentai.request_interval >= 200ms`；`pipeline.workers >= 1`；`pipeline.queue_size >= 1`；`telegraph.max_content_bytes >= 4096`；`image_server.tls.mode` 只能是空、`off` 或 `autocert`。

@@ -70,11 +70,11 @@ func errorText(err error) string {
 	case err == nil:
 		return "处理失败：未知错误"
 	case errors.Is(err, ehentai.ErrAuthRequired):
-		return "需要有效的 E-Hentai Cookie（config.yaml → ehentai.cookie）"
+		return "需要有效的 E-Hentai Cookie（config.yaml → ehentai.cookie；访问 exhentai 还需要 igneous）"
 	case errors.Is(err, ehentai.ErrNotFound):
 		return "画廊不存在、已删除或 token 无效"
 	case errors.Is(err, ehentai.ErrForbidden):
-		return "站点拒绝访问，可能触发了风控，请调低下载速度后重试"
+		return "站点拒绝访问：可能触发了风控，或该画廊被标记为 Offensive（需要有效 Cookie）"
 	case errors.Is(err, ehentai.ErrRateLimited):
 		return "被站点限流，请稍后重试"
 	case errors.Is(err, ehentai.ErrParse):

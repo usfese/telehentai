@@ -199,6 +199,10 @@ func (s *Server) Run(ctx context.Context) error {
 		srv := base(s.mux)
 		srv.Addr = s.cfg.Listen
 		s.logger.Info("图床启动", "addr", s.cfg.Listen, "public_base_url", s.cfg.PublicBaseURL)
+		if s.cfg.PublicBaseURL != "" {
+			s.logger.Info("本进程未终止 TLS：请确认反向代理把 public_base_url 转发到该监听地址",
+				"public_base_url", s.cfg.PublicBaseURL, "listen", s.cfg.Listen)
+		}
 		start(srv, false)
 	}
 

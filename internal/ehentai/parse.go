@@ -92,11 +92,17 @@ func parseGalleryPage(r io.Reader) (GalleryPage, error) {
 	}
 
 	if !foundGdt {
-		return GalleryPage{}, fmt.Errorf("%w: 未找到缩略图容器 div#gdt", ErrParse)
+		if err := classifyPageText(text.String()); err != nil {
+			return GalleryPage{}, err
+		}
+		return GalleryPage{}, fmt.Errorf("%w: 未找到缩略图容器 div#gdt（文本片段：%s）", ErrParse, textSnippet(text.String(), 120))
 	}
 	m := showingRe.FindStringSubmatch(text.String())
 	if m == nil {
-		return GalleryPage{}, fmt.Errorf("%w: 未找到「Showing X - Y of N images」文本", ErrParse)
+		if err := classifyPageText(text.String()); err != nil {
+			return GalleryPage{}, err
+		}
+		return GalleryPage{}, fmt.Errorf("%w: 未找到「Showing X - Y of N images」文本（文本片段：%s）", ErrParse, textSnippet(text.String(), 120))
 	}
 	var err error
 	if page.Start, err = atoiComma(m[1]); err != nil {
@@ -150,6 +156,7 @@ func parseGalleryTitle(r io.Reader) (string, error) {
 func parseImagePage(r io.Reader) (ImagePageContent, error) {
 	z := html.NewTokenizer(r)
 	var c ImagePageContent
+	var text strings.Builder
 	for {
 		tt := z.Next()
 		if tt == html.ErrorToken {
@@ -157,6 +164,11 @@ func parseImagePage(r io.Reader) (ImagePageContent, error) {
 				return c, fmt.Errorf("%w: %v", ErrParse, err)
 			}
 			break
+		}
+		if tt == html.TextToken {
+			text.WriteString(strings.ReplaceAll(string(z.Text()), "\u00a0", " "))
+			text.WriteByte(' ')
+			continue
 		}
 		if tt != html.StartTagToken && tt != html.SelfClosingTagToken {
 			continue
@@ -178,7 +190,10 @@ func parseImagePage(r io.Reader) (ImagePageContent, error) {
 		}
 	}
 	if c.OriginalURL == "" && c.ImageURL == "" {
-		return c, fmt.Errorf("%w: 未找到 /fullimg/ 链接或 img#img", ErrParse)
+		if err := classifyPageText(text.String()); err != nil {
+			return c, err
+		}
+		return c, fmt.Errorf("%w: 未找到 /fullimg/ 链接或 img#img（文本片段：%s）", ErrParse, textSnippet(text.String(), 120))
 	}
 	return c, nil
 }
@@ -199,4 +214,48 @@ func readTagAttrs(z *html.Tokenizer) map[string]string {
 
 func atoiComma(s string) (int, error) {
 	return strconv.Atoi(strings.ReplaceAll(s, ",", ""))
+}
+
+// pageErrorMarkers 把 E-Hentai 以 200 状态返回的纯文本错误页映射为哨兵错误，
+// 否则这类页面只会表现为「解析失败」，无法判断是 token 失效、需要登录还是被限流。
+var pageErrorMarkers = []struct {
+	marker string
+	err    error
+}{
+	{"key missing, or incorrect key provided", ErrNotFound},
+	{"this gallery is not available", ErrNotFound},
+	{"this gallery has been removed", ErrNotFound},
+	{"this gallery is private", ErrNotFound},
+	{"this gallery is inaccessible", ErrNotFound},
+	{"you must be logged in", ErrAuthRequired},
+	{"sad panda", ErrAuthRequired},
+	{"temporarily banned", ErrForbidden},
+	{"ip address has been banned", ErrForbidden},
+	{"too many requests", ErrRateLimited},
+	{"flagged as offensive", ErrForbidden},
+	{"never warn me again", ErrForbidden},
+}
+
+// classifyPageText 在页面文本中匹配已知站点错误文案；未命中返回 nil。
+func classifyPageText(text string) error {
+	lower := strings.ToLower(text)
+	for _, m := range pageErrorMarkers {
+		if strings.Contains(lower, m.marker) {
+			return fmt.Errorf("%w: 站点返回「%s」", m.err, m.marker)
+		}
+	}
+	return nil
+}
+
+// textSnippet 把页面文本压成一行并截断，便于日志定位问题。
+func textSnippet(text string, limit int) string {
+	flat := strings.Join(strings.Fields(text), " ")
+	r := []rune(flat)
+	if len(r) > limit {
+		return string(r[:limit]) + "..."
+	}
+	if len(r) == 0 {
+		return "<空>"
+	}
+	return flat
 }

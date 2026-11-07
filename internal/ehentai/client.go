@@ -11,6 +11,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -142,9 +143,17 @@ func New(cfg Config, logger *slog.Logger) (*Client, error) {
 		}
 	}
 
-	var rt http.RoundTripper = tr
-	if strings.TrimSpace(cfg.Cookie) != "" {
-		rt = &cookieTransport{base: tr, cookie: cfg.Cookie}
+	// 始终包装 cookieTransport：即使没有登录 Cookie，也要附加 nw=1 跳过 Offensive 警告页。
+	rt := &cookieTransport{base: tr, cookie: strings.TrimSpace(cfg.Cookie)}
+	checkRedirect := func(req *http.Request, via []*http.Request) error {
+		// exhentai 在缺少 igneous 时会 302 到 ?poni=no 并反复跳转，直接判定为需要登录。
+		if strings.Contains(req.URL.RawQuery, "poni=no") {
+			return ErrAuthRequired
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("重定向次数过多: %s", req.URL)
+		}
+		return nil
 	}
 
 	return &Client{
@@ -152,8 +161,8 @@ func New(cfg Config, logger *slog.Logger) (*Client, error) {
 		logger:  logger,
 		ua:      ua,
 		pacer:   NewPacer(cfg.RequestInterval, cfg.RequestJitter),
-		http:    &http.Client{Transport: rt, Timeout: cfg.Timeout},
-		imgHTTP: &http.Client{Transport: rt},
+		http:    &http.Client{Transport: rt, Timeout: cfg.Timeout, CheckRedirect: checkRedirect},
+		imgHTTP: &http.Client{Transport: rt, CheckRedirect: checkRedirect},
 	}, nil
 }
 
@@ -168,8 +177,33 @@ func (t *cookieTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return t.base.RoundTrip(req)
 	}
 	r := req.Clone(req.Context())
-	r.Header.Set("Cookie", t.cookie)
+	r.Header.Set("Cookie", t.cookieHeader())
 	return t.base.RoundTrip(r)
+}
+
+// suppressWarnCookie 让站点跳过「Offensive For Everyone」警告页；
+// 该警告页没有缩略图容器，会让下载端误以为是站点改版。
+const suppressWarnCookie = "nw=1"
+
+func (t *cookieTransport) cookieHeader() string {
+	cookie := strings.TrimSpace(t.cookie)
+	if hasCookieName(cookie, "nw") {
+		return cookie
+	}
+	if cookie == "" {
+		return suppressWarnCookie
+	}
+	return strings.TrimSuffix(cookie, ";") + "; " + suppressWarnCookie
+}
+
+func hasCookieName(cookie, name string) bool {
+	for _, part := range strings.Split(cookie, ";") {
+		part = strings.TrimSpace(part)
+		if i := strings.IndexByte(part, '='); i > 0 && strings.TrimSpace(part[:i]) == name {
+			return true
+		}
+	}
+	return false
 }
 
 func isECookieHost(host string) bool {
@@ -207,6 +241,10 @@ func (c *Client) do(ctx context.Context, method, rawURL string, body []byte, hea
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
+			}
+			// 登录/封禁类错误重试没有意义，立即返回。
+			if errors.Is(err, ErrAuthRequired) || errors.Is(err, ErrForbidden) {
+				return nil, err
 			}
 			if attempt+1 < attempts {
 				c.logger.Warn("请求失败，准备重试", "url", rawURL, "attempt", attempt+1, "err", err)
@@ -315,7 +353,22 @@ func (c *Client) getBytes(ctx context.Context, method, rawURL string, body []byt
 	if isLoginResponse(final, data) {
 		return nil, final, fmt.Errorf("%w: 站点要求登录（%s）", ErrAuthRequired, final)
 	}
+	if len(data) == 0 {
+		return nil, final, emptyResponseError(final)
+	}
 	return data, final, nil
+}
+
+// emptyResponseError 区分「exhentai 缺少 igneous 时返回 200 空页」与普通异常。
+func emptyResponseError(finalURL string) error {
+	host := ""
+	if u, err := url.Parse(finalURL); err == nil {
+		host = u.Hostname()
+	}
+	if host == "exhentai.org" || strings.HasSuffix(host, ".exhentai.org") {
+		return fmt.Errorf("%w: exhentai 返回空响应，通常是缺少 igneous Cookie", ErrAuthRequired)
+	}
+	return fmt.Errorf("%w: 站点返回空响应（%s）", ErrParse, finalURL)
 }
 
 func isLoginResponse(finalURL string, body []byte) bool {
@@ -479,7 +532,7 @@ func (c *Client) metaFromHTML(ctx context.Context, ref GalleryRef) (GalleryMeta,
 	}
 	gp, err := parseGalleryPage(bytes.NewReader(data))
 	if err != nil {
-		return GalleryMeta{}, err
+		return GalleryMeta{}, fmt.Errorf("%w（%s）", err, u)
 	}
 	title, _ := parseGalleryTitle(bytes.NewReader(data))
 	return GalleryMeta{
@@ -513,7 +566,7 @@ func (c *Client) ListImagePages(ctx context.Context, ref GalleryRef, expected in
 		}
 		gp, err := parseGalleryPage(bytes.NewReader(data))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w（%s）", err, u)
 		}
 
 		if p == 0 {

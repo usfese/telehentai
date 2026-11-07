@@ -69,6 +69,33 @@ func TestParseGalleryPageNotGallery(t *testing.T) {
 	if err == nil || !errors.Is(err, ErrParse) {
 		t.Fatalf("期望 ErrParse，得到 %v", err)
 	}
+	if !strings.Contains(err.Error(), "nothing here") {
+		t.Fatalf("错误应包含页面文本片段便于定位，得到 %v", err)
+	}
+}
+
+// 站点对失效 token、登录要求、限流等情况会返回 200 的纯文本/HTML 页面，
+// 必须识别成具体错误，而不是笼统的解析失败。
+func TestParseGalleryPageClassifiesSiteErrorPages(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want error
+	}{
+		{"token 失效", "<html><body>Key missing, or incorrect key provided.</body></html>", ErrNotFound},
+		{"画廊不可用", "<html><body>This gallery is not available.</body></html>", ErrNotFound},
+		{"需要登录", "<html><body>You must be logged in to view this gallery.</body></html>", ErrAuthRequired},
+		{"IP 封禁", "<html><body>Your IP address has been temporarily banned.</body></html>", ErrForbidden},
+		{"限流", "<html><body>Too many requests.</body></html>", ErrRateLimited},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseGalleryPage(strings.NewReader(tc.body))
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("期望 %v，得到 %v", tc.want, err)
+			}
+		})
+	}
 }
 
 func TestParseGalleryTitle(t *testing.T) {
@@ -101,5 +128,12 @@ func TestParseImagePageNoImages(t *testing.T) {
 	_, err := parseImagePage(strings.NewReader("<html><body><p>登录</p></body></html>"))
 	if err == nil || !errors.Is(err, ErrParse) {
 		t.Fatalf("期望 ErrParse，得到 %v", err)
+	}
+}
+
+func TestParseImagePageAuthRequired(t *testing.T) {
+	_, err := parseImagePage(strings.NewReader("<html><body>You must be logged in to view this image.</body></html>"))
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Fatalf("期望 ErrAuthRequired，得到 %v", err)
 	}
 }
