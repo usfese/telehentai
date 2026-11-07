@@ -77,21 +77,22 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	}
 	job.Done = func(res pipeline.Result, err error) {
 		if err != nil {
-			editor.finish(errorText(err), "")
+			editor.finish(errorText(err), "", "")
 			return
 		}
 		if res.Rejected {
-			editor.finish(rejectedText(res), models.ParseModeHTML)
+			editor.finish(rejectedText(res), models.ParseModeHTML, "")
 			if res.CoverURL != "" {
 				b.sendPhoto(msg.Chat.ID, res.CoverURL)
 			}
 			return
 		}
-		editor.finish(resultText(res), models.ParseModeHTML)
+		// 消息里第一个链接是源画廊（Telegram 无法预览），显式指定预览 Telegraph 页面。
+		editor.finish(resultText(res), models.ParseModeHTML, firstPageURL(res))
 	}
 
 	if !b.pipe.Submit(job) {
-		editor.finish(busyText, "")
+		editor.finish(busyText, "", "")
 	}
 }
 
@@ -160,23 +161,41 @@ func (e *statusEditor) progress(p pipeline.Progress) {
 	e.lastStage = p.Stage
 	e.mu.Unlock()
 
-	e.edit(progressText(p), "")
+	e.edit(progressText(p), "", "")
 }
 
-func (e *statusEditor) finish(text string, parseMode models.ParseMode) {
-	e.edit(text, parseMode)
+func (e *statusEditor) finish(text string, parseMode models.ParseMode, previewURL string) {
+	e.edit(text, parseMode, previewURL)
 }
 
-func (e *statusEditor) edit(text string, parseMode models.ParseMode) {
+func firstPageURL(res pipeline.Result) string {
+	if len(res.Pages) > 0 {
+		return res.Pages[0].URL
+	}
+	if len(res.URLs) > 0 {
+		return res.URLs[0]
+	}
+	return ""
+}
+
+func (e *statusEditor) edit(text string, parseMode models.ParseMode, previewURL string) {
 	// 结果回调发生在 worker 中，可能晚于本次更新的 ctx；这里用独立超时上下文。
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	_, err := e.api.EditMessageText(ctx, &bot.EditMessageTextParams{
+	params := &bot.EditMessageTextParams{
 		ChatID:    e.chatID,
 		MessageID: e.messageID,
 		Text:      text,
 		ParseMode: parseMode,
-	})
+	}
+	if previewURL != "" {
+		// 显式指定预览 URL 并优先大图；否则 Telegram 只会取消息里的第一个链接（源画廊不可预览）。
+		params.LinkPreviewOptions = &models.LinkPreviewOptions{
+			URL:              &previewURL,
+			PreferLargeMedia: bot.True(),
+		}
+	}
+	_, err := e.api.EditMessageText(ctx, params)
 	if err != nil && !strings.Contains(err.Error(), "message is not modified") {
 		e.logger.Warn("编辑状态消息失败", "message_id", e.messageID, "err", err)
 	}
