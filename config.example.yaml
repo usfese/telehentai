@@ -25,7 +25,7 @@ ehentai:
   timeout: 60s
   # 每个请求的重试次数（429/5xx/网络错误）
   retries: 3
-  # 优先下载原图；无 cookie 时会自动回退到重采样图
+  # 优先下载原图；设为 false 使用 H@H 重采样图（约 1280px WebP/JPEG，体积约 1/10）
   prefer_original: true
   # 单本画廊的页数上限
   max_pages: 5000

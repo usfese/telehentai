@@ -173,6 +173,15 @@ server {
 
 服务器上的 `/etc/telehentai/config.yaml` 含 bot token 与 Cookie，CI 不覆盖它；改配置仍需手动。
 
+## 速度与画质
+
+| 配置 | 效果 | 实测（同画廊 2 页） |
+|---|---|---|
+| `prefer_original: true` | 原图，PNG 常见 3–20 MB | 34.7s / 4.22 MB |
+| `prefer_original: false` | H@H 重采样图，约 1280px WebP/JPEG | 10.5s / 0.58 MB |
+
+`bandwidth_kib_per_sec` 默认 512，提高到 2048 可减少大图的等待；`request_interval` 不要低于 1s，避免触发站点风控。当前下载是串行的，进一步提速需要并发下载（见 `docs/architecture.md` 的并发模型）。
+
 ## 常见故障
 
 | 现象 | 原因 | 处理 |
