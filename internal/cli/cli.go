@@ -41,6 +41,7 @@ type fetchOptions struct {
 // publishOptions 对应 `telehentai publish`。
 type publishOptions struct {
 	configPath   string
+	dataDir      string
 	imageBaseURL string
 	limit        int
 	target       string
@@ -147,6 +148,7 @@ func parsePublish(args []string) (publishOptions, error) {
 	var o publishOptions
 	fs := newFlagSet("publish", os.Stderr)
 	fs.StringVar(&o.configPath, "config", "", "配置文件路径（默认 ./config.yaml）")
+	fs.StringVar(&o.dataDir, "data-dir", "", "覆盖 download.data_dir")
 	fs.StringVar(&o.imageBaseURL, "image-base-url", "", "覆盖 image_server.public_base_url")
 	fs.IntVar(&o.limit, "limit", 0, "最多发布多少张图（0 表示不限）")
 	if err := fs.Parse(args); err != nil {
@@ -287,6 +289,9 @@ func runPublish(ctx context.Context, o publishOptions) error {
 	cfg, err := loadConfig(o.configPath)
 	if err != nil {
 		return err
+	}
+	if o.dataDir != "" {
+		cfg.Download.DataDir = o.dataDir
 	}
 	if o.imageBaseURL != "" {
 		cfg.ImageServer.PublicBaseURL = o.imageBaseURL
