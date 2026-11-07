@@ -32,22 +32,19 @@ make tidy    # go mod tidy
 
 ## 测试约定
 
-- 单测不得访问网络：HTML 解析使用 `internal/ehentai/testdata/` 中的真实页面 fixture，HTTP 客户端行为使用 `httptest`。
-- fixture 覆盖：画廊首页、末页、含千分位总数的页面、单页图片页。它们不是「快照」而是解析器的契约样本，站点改版时应更新。
-- pipeline 使用 fake Source/Publisher/Store，验证下载跳过、单页失败容错、预算回退与去重。
+- 单测不得访问网络：HTML 解析使用 `internal/ehentai/testdata/` 中的**合成页面**，HTTP 客户端行为使用 `httptest`。
+- 合成 fixture 覆盖：画廊首页、末页、含千分位总数的页面、单页图片页。它们只保留解析器依赖的结构（`div#gdt`、`/s/` 链接、`Showing X - Y of N images`、`img#img`、`/fullimg/`），不含任何站点真实内容。
+- pipeline 使用 fake Source/Publisher/Store，验证下载跳过、单页失败容错、预算回退、并发与去重。
 
-## 更新 fixture
+## 维护 fixture
 
-```bash
-UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-curl -sL -A "$UA" "https://e-hentai.org/g/4310985/ad9552b3e4/?p=0" -o internal/ehentai/testdata/gallery_22.html
-curl -sL -A "$UA" "https://e-hentai.org/g/4310985/ad9552b3e4/?p=1" -o internal/ehentai/testdata/gallery_22_p2.html
-curl -sL -A "$UA" "https://e-hentai.org/g/4310982/76585c5ef1/?p=0" -o internal/ehentai/testdata/gallery_1400.html
-curl -sL -A "$UA" "https://e-hentai.org/s/b29c977f6a/4310986-1" -o internal/ehentai/testdata/image_page.html
-go test ./internal/ehentai/
-```
+fixture 是手写的最小 HTML，不是抓取快照。需要新增解析场景时，直接编辑 `internal/ehentai/testdata/*.html`：
 
-期望值：`gallery_22.html` 为 total=22、首页 20 个链接；`gallery_22_p2.html` 为 2 个链接；`gallery_1400.html` 为 total=1400；`image_page.html` 同时能解析出 `/fullimg/` 与 `img#img`。
+- `gallery_22.html` / `gallery_22_p2.html`：22 页画廊的首页与末页，用于分页边界与链接顺序。
+- `gallery_1400.html`：`Showing 1 - 20 of 1,400 images`，用于千分位解析。
+- `image_page.html`：同时包含 `/fullimg/` 原图链接与 `img#img` 重采样图链接。
+
+站点改版时，把新结构的最小片段补进对应文件，并同步 `parse_test.go` 的断言，**不要**把真实页面整页提交到仓库。
 
 ## 更新标签翻译数据
 

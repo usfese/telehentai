@@ -106,7 +106,7 @@ func TestParseGalleryTitle(t *testing.T) {
 	if strings.HasSuffix(title, "Galleries") || title == "" {
 		t.Fatalf("标题后缀未去除: %q", title)
 	}
-	if !strings.Contains(title, "Saimin Kekkon") {
+	if !strings.Contains(title, "Synthetic Test Gallery") {
 		t.Fatalf("标题内容异常: %q", title)
 	}
 }

@@ -2,6 +2,17 @@
 
 把 e-hentai / exhentai 画廊变成 telegra.ph 图集：Telegram 里发链接，机器人下载整本画廊、托管到自己对外暴露的 HTTPS 图片服务器，并按顺序发布为 telegra.ph 文章。
 
+
+## 功能
+
+- Telegram 长轮询（无需公网回调），支持私聊、群组与超级群话题
+- 整本下载 EH 画廊：并发解析/下载、断点续传、按域名分别限速
+- 自建 HTTPS 图床：内置 autocert，或交给 Caddy/Nginx 反向代理
+- 按体积预算分页发布 telegra.ph，多页自动补「上一部分/下一部分」
+- 标签中文翻译（EhTagTranslation），按命名空间分行，消息里每个标签带 `#`
+- 页数上限保护：超过 `pipeline.max_images` 不下载，只回标题、封面与源链接
+- Docker、systemd、GitHub Actions 部署
+
 ## 为什么需要自建图床
 
 Telegraph 的**新媒体上传接口已于 2024-09-06 被官方关闭**（Durov 公告），`telegra.ph/upload` 对合法 JPEG/PNG 也返回 `400 Unknown error`。telegra.ph 仍然接受**外部图片 URL**，并会渲染为 `<img src="...">`。
@@ -75,6 +86,70 @@ docker run -d --name telehentai \
 
 镜像里 `ENTRYPOINT` 固定为 `run --config /config/config.yaml`。要跑其他子命令，覆盖 entrypoint，例如
 `docker run --rm -v "$PWD/data:/data" telehentai fetch --data-dir /data <链接>`。
+
+## 部署到服务器（systemd）
+
+以 Ubuntu + Caddy 为例：二进制放 `/opt/telehentai`，配置放 `/etc/telehentai/config.yaml`，数据放 `/var/lib/telehentai`。
+
+```bash
+# 1. 构建（也可以在 CI 中完成）
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o telehentai ./cmd/telehentai
+
+# 2. 创建用户、目录，安装二进制与配置
+sudo useradd --system --home-dir /var/lib/telehentai --create-home --shell /usr/sbin/nologin telehentai
+sudo install -d -m 0755 /opt/telehentai /etc/telehentai
+sudo install -m 0755 telehentai /opt/telehentai/telehentai
+sudo install -m 0640 -o root -g telehentai config.yaml /etc/telehentai/config.yaml
+```
+
+systemd 单元 `/etc/systemd/system/telehentai.service`：
+
+```ini
+[Unit]
+Description=telehentai
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telehentai
+Group=telehentai
+WorkingDirectory=/var/lib/telehentai
+ExecStart=/opt/telehentai/telehentai run --config /etc/telehentai/config.yaml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/telehentai
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now telehentai
+sudo journalctl -u telehentai -f
+```
+
+配置至少包含：
+
+```yaml
+image_server:
+  listen: "127.0.0.1:8088"          # 由反向代理转发时只监听本机
+  public_base_url: "https://img.example.com"
+  tls:
+    mode: off                       # TLS 交给反向代理；用 autocert 时改为 autocert 并监听 443
+```
+
+验证：
+
+```bash
+curl -s http://127.0.0.1:8088/healthz        # ok
+curl -s https://img.example.com/healthz      # ok（反代配置正确后）
+```
 
 ## 部署 HTTPS
 
@@ -227,11 +302,27 @@ server {
 python3 scripts/update_tags.py
 ```
 
-数据库以 CC BY-NC-SA 3.0 协议提供，派生数据说明见 `internal/tags/data/README.md`。
+数据库以 CC BY-NC-SA 3.0 协议提供（非商业、署名、相同方式共享），派生数据说明见 `internal/tags/data/README.md`，许可全文见 `internal/tags/data/LICENSE.md`。
 
 ## 合规提示
 
 请只在你有权访问、存储与分享的内容上使用本工具，并遵守 E-Hentai/ExHentai 的服务条款与当地法律。自建图床会把图片公网暴露，请自行评估版权与内容风险；`robots.txt` 默认 `Disallow: /` 只是阻止搜索引擎抓取，不构成任何保护。
+
+## 许可证
+
+| 内容 | 许可证 |
+|---|---|
+| 源代码 | MIT，全文见 [LICENSE](LICENSE) |
+| 标签翻译数据 `internal/tags/data/tags.json` | CC BY-NC-SA 3.0，全文见 [internal/tags/data/LICENSE.md](internal/tags/data/LICENSE.md) |
+| 测试 HTML `internal/ehentai/testdata/` | 合成数据，不含任何站点真实内容 |
+
+标签数据来自 [EhTagTranslation/Database](https://github.com/EhTagTranslation/Database)（版本见 `tags.json` 的 `version` 字段）：
+
+- 必须保留署名与来源链接；
+- **不得用于商业目的**（广告、付费功能、收费部署等）；
+- 修改或派生的标签映射必须继续以 CC BY-NC-SA 3.0 发布。
+
+MIT 只覆盖代码，不覆盖标签数据。完整声明见 [NOTICE](NOTICE)。
 
 ## 文档
 

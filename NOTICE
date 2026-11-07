@@ -1,0 +1,20 @@
+telehentai
+==========
+
+Copyright (c) 2026 usfese and contributors
+
+本仓库的**源代码**以 MIT 许可证发布，全文见 LICENSE。
+
+**标签翻译数据**（internal/tags/data/tags.json）来自：
+- 项目：EhTagTranslation/Database
+- 地址：https://github.com/EhTagTranslation/Database
+- 版本：见 tags.json 的 version 字段（当前 v7.29653.1）
+- 生成：scripts/update_tags.py（只保留标签中文名映射）
+- 许可证：Creative Commons 署名-非商业性使用-相同方式共享 3.0（CC BY-NC-SA 3.0），全文见 internal/tags/data/LICENSE.md
+
+因此：
+1. 数据不得用于商业目的（包括以广告、付费、收费部署等方式获利）；
+2. 基于该数据的修改/衍生映射必须继续以 CC BY-NC-SA 3.0 发布，并保留署名；
+3. 代码与数据分别适用各自的许可证，MIT 不覆盖 tags.json 及其衍生数据。
+
+测试用 HTML（internal/ehentai/testdata/）为合成数据，不包含任何站点的真实页面内容。
