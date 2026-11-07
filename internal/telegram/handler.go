@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"log/slog"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,9 +21,11 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 		return
 	}
 	if !b.authorized(msg.From.ID) {
+		// 管理员需要知道是谁在请求，但普通用户不应看到内部配置说明。
+		b.logger.Warn("未授权用户尝试使用", "user_id", msg.From.ID, "username", msg.From.Username)
 		_, _ = api.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: msg.Chat.ID,
-			Text:   "未授权：请在 config.yaml 的 telegram.allowed_user_ids 中加入你的 Telegram ID（你的 ID：" + strconv.FormatInt(msg.From.ID, 10) + "）",
+			Text:   noAccessText,
 		})
 		return
 	}
@@ -84,7 +85,7 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	}
 
 	if !b.pipe.Submit(job) {
-		editor.finish("队列已满或该画廊正在处理中，请稍后再试")
+		editor.finish(busyText)
 	}
 }
 

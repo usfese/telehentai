@@ -64,7 +64,24 @@ func New(cfg Config, pipe *pipeline.Pipeline, resolver Resolver, logger *slog.Lo
 
 // Run 阻塞地开始长轮询，直到 ctx 取消。
 func (b *Bot) Run(ctx context.Context) error {
+	b.registerCommands(ctx)
 	b.logger.Info("Telegram 机器人启动（长轮询）")
 	b.api.Start(ctx)
 	return nil
+}
+
+// registerCommands 注册命令菜单，让 /start、/help 出现在 Telegram 的输入提示里。
+// 失败只告警：命令仍可通过手输触发，不应因此阻塞机器人。
+func (b *Bot) registerCommands(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := b.api.SetMyCommands(ctx, &bot.SetMyCommandsParams{
+		Commands: []models.BotCommand{
+			{Command: "start", Description: "开始使用"},
+			{Command: "help", Description: "查看使用说明"},
+		},
+	})
+	if err != nil {
+		b.logger.Warn("注册命令菜单失败", "err", err)
+	}
 }

@@ -37,6 +37,7 @@ go run ./cmd/telehentai run
 
 然后在 Telegram 里给机器人发画廊链接，例如
 `https://e-hentai.org/g/4310985/ad9552b3e4/`，机器人会回复进度，最终给出 telegra.ph 链接。
+启动时会自动注册 `/start`、`/help` 命令；面向普通用户的回复只包含进度、结果链接与通用失败提示，不暴露 Cookie、配置项等部署细节。
 
 敏感字段也可以用环境变量提供：`TELEHENTAI_TELEGRAM_TOKEN`、`TELEHENTAI_EHENTAI_COOKIE`、`TELEHENTAI_TELEGRAPH_ACCESS_TOKEN`、`TELEHENTAI_TELEGRAM_ALLOWED_USER_IDS`（逗号分隔）。环境变量只在对应配置为空时生效。
 
@@ -118,7 +119,7 @@ img.example.com {
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | `/start` 无响应或日志报 401 | token 错误 | 检查 `telegram.token` |
-| 回复「未授权：…（你的 ID：N）」 | 白名单未包含该用户 | 把 N 加进 `allowed_user_ids` 或临时 `allow_all_users: true` |
+| 用户收到「抱歉，你暂时没有使用权限。」 | 白名单未包含该用户 | 日志里有 `user_id`，加入 `allowed_user_ids` 或临时 `allow_all_users: true` |
 | 回复「需要有效的 E-Hentai Cookie」 | 未登录访问 `/fullimg` 或画廊被重定向到登录页 | 配置 `ehentai.cookie`（见 [docs/config.md](docs/config.md)） |
 | 结果提示「已使用重采样图」 | 无 Cookie 或原图节点已失效 | 属预期降级；配置 Cookie 可获得原图 |
 | 结果提示「站点拒绝访问」 | 触发风控/地区限制 | 调低 `bandwidth_kib_per_sec`、增大 `request_interval`，或配置代理 |
