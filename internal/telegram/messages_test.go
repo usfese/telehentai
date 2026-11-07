@@ -33,3 +33,30 @@ func TestResultTextFallsBackToURLs(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestTagLinesUseHashtags(t *testing.T) {
+	lines := tagLines([]string{"female:lolicon", "male:shotacon", "artist:gyuunyuu jirou"})
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{"女性：#萝莉", "男性：#正太", "#gyuunyuu_jirou"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("缺少 %q: %s", want, joined)
+		}
+	}
+}
+
+func TestRejectedText(t *testing.T) {
+	res := pipeline.Result{
+		Rejected:  true,
+		Total:     500,
+		Limit:     200,
+		Title:     "标题",
+		SourceURL: "https://e-hentai.org/g/1/abcdef1234/",
+		Tags:      []string{"female:lolicon"},
+	}
+	got := rejectedText(res)
+	for _, want := range []string{"共 500 页，超过上限 200 页，未下载。", "女性：#萝莉", "https://e-hentai.org/g/1/abcdef1234/"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("缺少 %q: %s", want, got)
+		}
+	}
+}

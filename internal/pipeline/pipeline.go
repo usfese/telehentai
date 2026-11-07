@@ -134,6 +134,21 @@ func (p *Pipeline) Process(ctx context.Context, j *Job) (Result, error) {
 		return Result{}, err
 	}
 
+	// 超过上限的画廊不下载，只返回标题、封面与源链接。
+	if p.cfg.MaxImages > 0 && meta.FileCount > p.cfg.MaxImages {
+		report(Progress{Stage: StageDone, Note: "超过页数上限"})
+		res := Result{
+			Rejected:  true,
+			Total:     meta.FileCount,
+			Limit:     p.cfg.MaxImages,
+			Title:     meta.Title,
+			SourceURL: meta.URL,
+			Tags:      meta.Tags,
+		}
+		res.CoverURL = p.fetchCover(ctx, j.Ref)
+		return res, nil
+	}
+
 	report(Progress{Stage: StageListing})
 	images, err := p.store.ListImages(j.Ref.GID)
 	if err != nil {
@@ -180,6 +195,11 @@ func (p *Pipeline) Process(ctx context.Context, j *Job) (Result, error) {
 	}
 	res.Failed = stats.Failed
 	res.UsedFallback = stats.UsedFallback
+	res.Total = meta.FileCount
+	res.Limit = p.cfg.MaxImages
+	res.Title = meta.Title
+	res.SourceURL = meta.URL
+	res.Tags = meta.Tags
 
 	note := ""
 	if res.Failed > 0 {
@@ -187,6 +207,39 @@ func (p *Pipeline) Process(ctx context.Context, j *Job) (Result, error) {
 	}
 	report(Progress{Stage: StageDone, Done: res.Images, Total: res.Images, Note: note})
 	return res, nil
+}
+
+// fetchCover 下载第一页图片并返回图床地址，供超大画廊的拒绝消息展示封面。
+// 任一步失败都只返回空串，不影响主流程。
+func (p *Pipeline) fetchCover(ctx context.Context, ref ehentai.GalleryRef) string {
+	page, err := p.src.FirstImagePage(ctx, ref)
+	if err != nil {
+		p.logger.Warn("获取封面页失败", "gid", ref.GID, "err", err)
+		return ""
+	}
+	exists, name := p.store.ImageExists(ref.GID, page.Page)
+	if !exists {
+		imgRef, err := p.src.ResolveImage(ctx, page)
+		if err != nil {
+			p.logger.Warn("解析封面失败", "gid", ref.GID, "err", err)
+			return ""
+		}
+		rc, data, err := p.src.Open(ctx, imgRef)
+		if err != nil {
+			p.logger.Warn("下载封面失败", "gid", ref.GID, "err", err)
+			return ""
+		}
+		name, err = p.store.SaveImage(ref.GID, page.Page, data.Ext, rc)
+		closeErr := rc.Close()
+		if err != nil || closeErr != nil {
+			p.logger.Warn("保存封面失败", "gid", ref.GID, "err", err)
+			return ""
+		}
+	}
+	if name == "" {
+		return ""
+	}
+	return strings.TrimRight(p.cfg.PublicBaseURL, "/") + "/i/" + strconv.Itoa(ref.GID) + "/" + name
 }
 
 // throttledReporter 按 ProgressInterval 丢弃中间进度，但每页完成时总能上报。

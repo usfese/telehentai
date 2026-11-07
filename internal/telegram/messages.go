@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"unicode"
 
 	"github.com/usfese/telehentai/internal/ehentai"
 	"github.com/usfese/telehentai/internal/pipeline"
+	"github.com/usfese/telehentai/internal/tags"
 )
 
 // helpText 是 /start 与 /help 的固定回复；面向普通用户，不暴露部署细节。
@@ -48,19 +50,96 @@ func progressText(p pipeline.Progress) string {
 	}
 }
 
-// resultText 只返回生成的页面链接，用页面标题作为显示文本（需要 HTML parse mode）。
+// resultText 返回「画廊信息 + 页面链接」，链接显示为本子标题（需要 HTML parse mode）。
 func resultText(res pipeline.Result) string {
-	if len(res.Pages) == 0 {
-		return strings.Join(res.URLs, "\n")
-	}
-	var b strings.Builder
-	for i, p := range res.Pages {
-		if i > 0 {
-			b.WriteByte('\n')
+	lines := infoLines(res)
+	links := make([]string, 0, len(res.Pages)+len(res.URLs))
+	if len(res.Pages) > 0 {
+		for _, p := range res.Pages {
+			links = append(links, fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(p.URL), html.EscapeString(p.Title)))
 		}
-		fmt.Fprintf(&b, `<a href="%s">%s</a>`, html.EscapeString(p.URL), html.EscapeString(p.Title))
+	} else {
+		links = append(links, res.URLs...)
 	}
-	return b.String()
+	for i := range lines {
+		lines[i] = html.EscapeString(lines[i])
+	}
+	if len(links) > 0 {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, links...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// rejectedText 是「画廊超过页数上限」时的说明。
+func rejectedText(res pipeline.Result) string {
+	lines := make([]string, 0, 8)
+	if title := strings.TrimSpace(res.Title); title != "" {
+		lines = append(lines, title)
+	}
+	lines = append(lines, fmt.Sprintf("共 %d 页，超过上限 %d 页，未下载。", res.Total, res.Limit))
+	lines = append(lines, tagLines(res.Tags)...)
+	if res.SourceURL != "" {
+		lines = append(lines, "原画廊："+res.SourceURL)
+	}
+	for i := range lines {
+		lines[i] = html.EscapeString(lines[i])
+	}
+	return strings.Join(lines, "\n")
+}
+
+// infoLines 返回标题、标签行与源链接（未转义）。
+func infoLines(res pipeline.Result) []string {
+	lines := make([]string, 0, 8)
+	if title := strings.TrimSpace(res.Title); title != "" {
+		lines = append(lines, title)
+	}
+	lines = append(lines, tagLines(res.Tags)...)
+	if res.SourceURL != "" {
+		lines = append(lines, "原画廊："+res.SourceURL)
+	}
+	return lines
+}
+
+// tagLines 按命名空间分组，每个标签加 #，在 Telegram 里可直接点击搜索。
+func tagLines(list []string) []string {
+	if len(list) > 50 {
+		list = list[:50]
+	}
+	lines := make([]string, 0, 8)
+	for _, g := range tags.GroupTags(list) {
+		hashes := make([]string, 0, len(g.Tags))
+		for _, name := range g.Tags {
+			if h := hashtag(name); h != "" {
+				hashes = append(hashes, "#"+h)
+			}
+		}
+		if len(hashes) == 0 {
+			continue
+		}
+		line := strings.Join(hashes, " ")
+		if g.Namespace != "" && g.Namespace != "标签" {
+			line = g.Namespace + "：" + line
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// hashtag 清洗标签名：保留字母、数字与下划线，空白转下划线，其余标点丢弃。
+func hashtag(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_':
+			b.WriteRune(r)
+		case unicode.IsSpace(r):
+			b.WriteByte('_')
+		}
+	}
+	return strings.Trim(b.String(), "_")
 }
 
 // errorText 把内部错误映射为用户可读的提示，不暴露 Cookie、配置项等部署细节。

@@ -80,6 +80,13 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 			editor.finish(errorText(err), "")
 			return
 		}
+		if res.Rejected {
+			editor.finish(rejectedText(res), models.ParseModeHTML)
+			if res.CoverURL != "" {
+				b.sendPhoto(msg.Chat.ID, res.CoverURL)
+			}
+			return
+		}
 		editor.finish(resultText(res), models.ParseModeHTML)
 	}
 
@@ -94,6 +101,18 @@ func (b *Bot) authorized(userID int64) bool {
 	}
 	_, ok := b.cfg.AllowedUserIDs[userID]
 	return ok
+}
+
+// sendPhoto 把封面图（图床 URL）发给用户；失败只记日志。
+func (b *Bot) sendPhoto(chatID int64, photoURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := b.api.SendPhoto(ctx, &bot.SendPhotoParams{
+		ChatID: chatID,
+		Photo:  &models.InputFileString{Data: photoURL},
+	}); err != nil {
+		b.logger.Warn("发送封面失败", "chat_id", chatID, "err", err)
+	}
 }
 
 func (b *Bot) reply(ctx context.Context, api *bot.Bot, msg *models.Message, text string) {

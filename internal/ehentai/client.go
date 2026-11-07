@@ -548,6 +548,25 @@ func (c *Client) metaFromHTML(ctx context.Context, ref GalleryRef) (GalleryMeta,
 	}, nil
 }
 
+// FirstImagePage 只抓取第一页缩略图页，用于超大画廊的封面展示，避免遍历全部分页。
+func (c *Client) FirstImagePage(ctx context.Context, ref GalleryRef) (ImagePage, error) {
+	u := galleryURL(ref) + "?p=0"
+	data, _, err := c.getBytes(ctx, http.MethodGet, u, nil,
+		map[string]string{"Referer": ref.Site.BaseURL() + "/"}, maxHTMLBytes)
+	if err != nil {
+		return ImagePage{}, err
+	}
+	gp, err := parseGalleryPage(bytes.NewReader(data))
+	if err != nil {
+		return ImagePage{}, fmt.Errorf("%w（%s）", err, u)
+	}
+	if len(gp.Pages) == 0 {
+		return ImagePage{}, fmt.Errorf("%w: 画廊内没有图片", ErrNotFound)
+	}
+	first := gp.Pages[0]
+	return ImagePage{Page: first.Page, URL: resolveURL(u, first.URL)}, nil
+}
+
 // ListImagePages 遍历缩略图页，收集全部图片页链接。
 // 停止条件来自页面上的「Showing X - Y of N images」，因为越界页码会被站点钳回最后一页。
 func (c *Client) ListImagePages(ctx context.Context, ref GalleryRef, expected int) ([]ImagePage, error) {

@@ -100,6 +100,13 @@ func (f *fakeSource) Meta(context.Context, ehentai.GalleryRef) (ehentai.GalleryM
 	return f.meta, nil
 }
 
+func (f *fakeSource) FirstImagePage(context.Context, ehentai.GalleryRef) (ehentai.ImagePage, error) {
+	if len(f.pages) == 0 {
+		return ehentai.ImagePage{}, errors.New("没有图片")
+	}
+	return f.pages[0], nil
+}
+
 func (f *fakeSource) ListImagePages(context.Context, ehentai.GalleryRef, int) ([]ehentai.ImagePage, error) {
 	f.listCalls.Add(1)
 	return f.pages, nil
@@ -378,5 +385,36 @@ func TestProcessMultiPartAddsNavigation(t *testing.T) {
 	edited, _ := json.Marshal(pub.editedInputs[0].Content)
 	if !strings.Contains(string(edited), "下一部分") {
 		t.Fatalf("回填内容缺少下一部分: %s", edited)
+	}
+}
+
+func TestProcessRejectsGalleryOverLimit(t *testing.T) {
+	src := newFakeSource(3)
+	src.meta.FileCount = 500
+	src.meta.Tags = []string{"female:lolicon"}
+	st := newFakeStore()
+	pub := &fakePublisher{}
+	cfg := testConfig()
+	cfg.MaxImages = 200
+	p := New(cfg, src, pub, st, discardLogger())
+
+	res, err := p.Process(context.Background(), testJob(4310985))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Rejected || res.Total != 500 || res.Limit != 200 {
+		t.Fatalf("拒绝结果错误: %+v", res)
+	}
+	if res.CoverURL != "https://img.example.com/i/4310985/0001.webp" {
+		t.Fatalf("封面地址=%q", res.CoverURL)
+	}
+	if pub.createCalls != 0 {
+		t.Fatalf("超限时不应发布页面，createCalls=%d", pub.createCalls)
+	}
+	if src.listCalls.Load() != 0 {
+		t.Fatalf("超限时不应遍历列表，listCalls=%d", src.listCalls.Load())
+	}
+	if got := len(st.images[4310985]); got != 1 {
+		t.Fatalf("应只保存封面 1 张，实际 %d", got)
 	}
 }

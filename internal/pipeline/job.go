@@ -77,6 +77,18 @@ type Result struct {
 	UsedFallback bool
 	// Failed 是下载失败、被跳过的图片页数。
 	Failed int
+	// Rejected 表示画廊页数超过上限，未下载。
+	Rejected bool
+	// Total 是画廊总页数（Rejected 时有意义）。
+	Total int
+	// Limit 是触发拒绝时使用的上限。
+	Limit int
+	// Title / SourceURL / Tags 是画廊信息，用于在消息里展示。
+	Title     string
+	SourceURL string
+	Tags      []string
+	// CoverURL 是封面图的外部地址（仅 Rejected 时尝试获取）。
+	CoverURL string
 }
 
 // Job 是一次机器人任务的上下文。
@@ -99,6 +111,8 @@ type Config struct {
 	MaxContentBytes  int
 	// DownloadConcurrency 是单本画廊内并发下载/解析的图片数。
 	DownloadConcurrency int
+	// MaxImages 是允许下载的图片上限；0 表示不限。
+	MaxImages int
 	// PublicBaseURL 是图床根地址；Process 内部拼成 <base>/i/<gid>。
 	PublicBaseURL string
 	AuthorName    string
@@ -109,6 +123,7 @@ type Config struct {
 type Source interface {
 	Meta(context.Context, ehentai.GalleryRef) (ehentai.GalleryMeta, error)
 	ListImagePages(context.Context, ehentai.GalleryRef, int) ([]ehentai.ImagePage, error)
+	FirstImagePage(context.Context, ehentai.GalleryRef) (ehentai.ImagePage, error)
 	ResolveImage(context.Context, ehentai.ImagePage) (ehentai.ImageRef, error)
 	Open(context.Context, ehentai.ImageRef) (io.ReadCloser, ehentai.ImageData, error)
 }

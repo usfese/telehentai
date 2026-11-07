@@ -135,6 +135,7 @@ func PipelineConfig(cfg *config.Config) pipeline.Config {
 		ProgressInterval:    cfg.Pipeline.ProgressInterval.D(),
 		MaxContentBytes:     cfg.Telegraph.MaxContentBytes,
 		DownloadConcurrency: cfg.Pipeline.DownloadConcurrency,
+		MaxImages:           cfg.Pipeline.MaxImages,
 		PublicBaseURL:       strings.TrimRight(cfg.ImageServer.PublicBaseURL, "/"),
 		AuthorName:          cfg.Telegraph.AuthorName,
 		AuthorURL:           cfg.Telegraph.AuthorURL,
