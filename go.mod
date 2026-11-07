@@ -9,4 +9,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require golang.org/x/text v0.43.0 // indirect
+require (
+	github.com/go-telegram/bot v1.27.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+)
