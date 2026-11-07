@@ -17,7 +17,20 @@ import (
 // handle 是默认消息处理器。
 func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	msg := update.Message
-	if msg == nil || msg.From == nil || msg.From.IsBot {
+	if msg == nil {
+		// 频道帖子、编辑消息等不是 Message 的更新，先记录下来便于排查。
+		b.logger.Debug("收到非消息更新", "channel_post", update.ChannelPost != nil, "edited", update.EditedMessage != nil)
+		return
+	}
+	fromID := int64(0)
+	fromBot := false
+	if msg.From != nil {
+		fromID, fromBot = msg.From.ID, msg.From.IsBot
+	}
+	b.logger.Debug("收到消息", "chat_id", msg.Chat.ID, "chat_type", string(msg.Chat.Type),
+		"from", fromID, "from_bot", fromBot, "sender_chat", senderChatID(msg), "text_len", len(msg.Text))
+
+	if msg.From == nil || msg.From.IsBot {
 		return
 	}
 
@@ -25,7 +38,6 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	if text == "" {
 		return
 	}
-	b.logger.Debug("收到消息", "chat_id", msg.Chat.ID, "chat_type", string(msg.Chat.Type), "from", msg.From.ID, "text_len", len(text))
 
 	// 只响应命令与 E-Hentai 链接，其余消息（聊天、图片、贴纸等）一律静默忽略。
 	head := strings.Fields(text)[0]
@@ -112,6 +124,13 @@ func extractLink(text string) (ehentai.Link, bool) {
 		}
 	}
 	return ehentai.Link{}, false
+}
+
+func senderChatID(msg *models.Message) int64 {
+	if msg.SenderChat == nil {
+		return 0
+	}
+	return msg.SenderChat.ID
 }
 
 func truncate(s string, n int) string {
