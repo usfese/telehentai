@@ -182,7 +182,7 @@ server {
 
 `bandwidth_kib_per_sec` 默认 512（服务器上设为 2048）；`request_interval` 建议不低于 200ms。`pipeline.download_concurrency`（默认 4）让单本画廊并发解析与下载，`/s/` 页面仍受 `request_interval` 节流，H@H CDN 只受总带宽限制。
 
-服务器实测：22 页画廊约 25 秒（`prefer_original: false`、`request_interval: 300ms`、并发 4）。此时瓶颈是站点请求延迟与 CDN，而不是带宽；把并发从 4 提到 8 或取消带宽限制几乎没有变化。
+服务器实测：22 页画廊约 **9.4 秒**（`prefer_original: false`、`request_interval: 200ms`、并发 4，5.6 MB）。瓶颈仍是站点请求延迟与 CDN；把并发提到 8 或取消带宽限制提升有限。
 
 ## 常见故障
 
