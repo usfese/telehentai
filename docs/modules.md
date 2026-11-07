@@ -72,7 +72,7 @@ New 构造 Server，Handler 返回 ServeMux（路由 GET /i/{gid}/{name}、/heal
 
 ## internal/telegram
 
-Bot 封装 go-telegram/bot 的长轮询。handle 负责白名单校验、/start 与 /help、ParseLink、ResolveRef、发送状态消息、Submit，以及进度与最终结果的编辑（含 message is not modified 忽略）。Resolver 接口用于补全单页链接的 token。
+Bot 封装 go-telegram/bot 的长轮询。handle 只响应 E-Hentai 链接与 /start、/help：其余消息静默忽略；白名单只校验链接消息（群里未授权静默，私聊提示）。随后 ParseLink、ResolveRef、发送状态消息、Submit，并编辑进度与最终结果（含 message is not modified 忽略）。Resolver 接口用于补全单页链接的 token。
 
 ## internal/app
 

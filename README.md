@@ -184,6 +184,12 @@ server {
 
 服务器实测：22 页画廊约 **9.4 秒**（`prefer_original: false`、`request_interval: 200ms`、并发 4，5.6 MB）。瓶颈仍是站点请求延迟与 CDN；把并发提到 8 或取消带宽限制提升有限。
 
+## 群组使用
+
+- 把机器人加入群。Telegram 默认隐私模式会让它收不到普通消息：在 BotFather 用 `/setprivacy` 关闭后，需把机器人移出群再重新加入（或直接把机器人设为管理员）。
+- 机器人只响应两类消息：E-Hentai / ExHentai 画廊链接，以及 `/start`、`/help`（群里可写 `/start@botname`）。聊天、图片、贴纸、其他命令一律静默忽略。
+- 群里只有 `telegram.allowed_user_ids` 中的用户发的链接会被处理；未授权用户在群里静默忽略，私聊才会收到无权限提示。
+
 ## 常见故障
 
 | 现象 | 原因 | 处理 |

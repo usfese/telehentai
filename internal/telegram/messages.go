@@ -20,9 +20,6 @@ const helpText = `发送 e-hentai / exhentai 画廊链接，我会下载整本�
   https://e-hentai.org/s/<pagekey>/<gid>-<n>
 发送 /start 可再次查看本说明。`
 
-// linkHint 是收到非画廊文本时的提示。
-const linkHint = "请发送 e-hentai / exhentai 画廊链接，例如 https://e-hentai.org/g/123456/abcdef1234/"
-
 // busyText 在队列满或同一画廊正在处理时回复。
 const busyText = "当前任务较多，请稍后再试。"
 

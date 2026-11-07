@@ -17,33 +17,35 @@ import (
 // handle 是默认消息处理器。
 func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	msg := update.Message
-	if msg == nil || msg.From == nil {
-		return
-	}
-	if !b.authorized(msg.From.ID) {
-		// 管理员需要知道是谁在请求，但普通用户不应看到内部配置说明。
-		b.logger.Warn("未授权用户尝试使用", "user_id", msg.From.ID, "username", msg.From.Username)
-		_, _ = api.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: msg.Chat.ID,
-			Text:   noAccessText,
-		})
+	if msg == nil || msg.From == nil || msg.From.IsBot {
 		return
 	}
 
 	text := strings.TrimSpace(msg.Text)
 	if text == "" {
-		b.reply(ctx, api, msg, linkHint)
 		return
 	}
+
+	// 只响应命令与 E-Hentai 链接，其余消息（聊天、图片、贴纸等）一律静默忽略。
 	head := strings.Fields(text)[0]
-	if head == "/start" || head == "/help" || strings.HasPrefix(head, "/start@") || strings.HasPrefix(head, "/help@") {
-		b.reply(ctx, api, msg, helpText)
+	if strings.HasPrefix(head, "/") {
+		if isHelpCommand(head) {
+			b.reply(ctx, api, msg, helpText)
+		}
 		return
 	}
 
 	link, err := ehentai.ParseLink(text)
 	if err != nil {
-		b.reply(ctx, api, msg, linkHint)
+		return
+	}
+
+	if !b.authorized(msg.From.ID) {
+		// 私聊里告知无权限；群里静默，避免每个人贴链接都刷一条拒绝消息。
+		b.logger.Warn("未授权用户尝试使用", "user_id", msg.From.ID, "username", msg.From.Username, "chat_id", msg.Chat.ID)
+		if msg.Chat.Type == models.ChatTypePrivate {
+			b.reply(ctx, api, msg, noAccessText)
+		}
 		return
 	}
 
@@ -94,6 +96,15 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 	if !b.pipe.Submit(job) {
 		editor.finish(busyText, "", "")
 	}
+}
+
+// isHelpCommand 匹配 /start、/help，以及群里的 /start@botname 形式。
+func isHelpCommand(head string) bool {
+	if head == "/start" || head == "/help" {
+		return true
+	}
+	name, _, ok := strings.Cut(head, "@")
+	return ok && (name == "/start" || name == "/help")
 }
 
 func (b *Bot) authorized(userID int64) bool {
