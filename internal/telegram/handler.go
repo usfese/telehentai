@@ -64,7 +64,6 @@ func (b *Bot) handle(ctx context.Context, api *bot.Bot, update *models.Update) {
 
 	editor := &statusEditor{
 		api:       api,
-		ctx:       ctx,
 		chatID:    msg.Chat.ID,
 		messageID: sent.ID,
 		interval:  b.cfg.ProgressInterval,
@@ -122,7 +121,6 @@ func (b *Bot) editStatus(ctx context.Context, api *bot.Bot, chatID int64, messag
 // statusEditor 负责按节流规则更新同一条状态消息。
 type statusEditor struct {
 	api       *bot.Bot
-	ctx       context.Context
 	chatID    int64
 	messageID int
 	interval  time.Duration
@@ -152,7 +150,10 @@ func (e *statusEditor) finish(text string) {
 }
 
 func (e *statusEditor) edit(text string) {
-	_, err := e.api.EditMessageText(e.ctx, &bot.EditMessageTextParams{
+	// 结果回调发生在 worker 中，可能晚于本次更新的 ctx；这里用独立超时上下文。
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_, err := e.api.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    e.chatID,
 		MessageID: e.messageID,
 		Text:      text,
